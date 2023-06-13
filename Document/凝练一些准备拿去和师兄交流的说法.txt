@@ -10,7 +10,6 @@
 和前面那个类似，思路上太simple了，咱要是再来玩，估计的往里面加buff才行，比如齿轮是各向异性的或者齿轮是碳纤维的。
 这个人家也是自己做了参数化的。【初步判断，参数化这一步恐怕还是工作量稍微大点的。画个渐开线倒是不难，但是整到ansys里面估计也得操作一下】
 
-
 [1]	Li W, Liang Y, Liu Y. Failure load prediction and optimisation for adhesively bonded joints enabled by deep learning and fruit fly optimisation[J]. Advanced Engineering Informatics, 2022, 54: 101817.
 这个也是开始有新活了，虽然思路是一样的。
 迁移学习还有点意思，估计不叠点buff是不好发了。【这个或许不是我们的生态位，我们叠buff的话还得想想怎么叠。】
