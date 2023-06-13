@@ -21,13 +21,13 @@ class UAVPatrolEnv(gym.Env):
     # it seems only a simple static member of Env class
     # https://gymnasium.farama.org/
 
-    def __init__(self,**kargs):
+    def __init__(self):
         print('MXairfoil: start UAVPatrolEnv initialization. En Taro XXH!')
         self.viewer=None
         self.server_process=None
         self.server_port = None
-        # self.n_dim = 18 
-        self.BattleField_init()
+        # self.BattleField_init(x_0=x_0,y_0=y_0,sudu_0 = sudu_0,a_0=a_0,omega_0=omega_0,dt = dt,omega_max = omega_max,sudu_max=sudu_max,r_observation=r_observation,L_x=L_x,L_y=L_y,dL=dL,S_target=S_target)
+        self.BattleField_init(x_0=0,y_0=50*10**3,sudu_0 = 40,a_0=0,omega_0=0,dt = 60,omega_max = 0.2,sudu_max=50,r_observation=3000,L_x=100*10**3,L_y=100*10**3,dL=1*10**3,S_target=4*10**8)
         
 
         self.hangshu =  int(self.BattleField.L_x/self.BattleField.dL) + 1
