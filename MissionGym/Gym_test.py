@@ -19,4 +19,8 @@ import UAV_Patrol_gym
 
 env_name = 'UAV_Patrol_env-v0'
 shishi_env = gym.make(env_name)
+state = shishi_env.reset() 
+action = 0 
+next_state,reward,done,_ = shishi_env.step(action)
+shishi_env.render()
 

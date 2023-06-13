@@ -13,11 +13,11 @@ sys.path.append(WEIZHI+r'/UAV')
 from UAV import UAV
 
 class BattleField(object):
-    def __init__(self,L_x=1000,L_y=1000,**kargs):
+    def __init__(self,L_x=1000,L_y=1000,dL = 10 ,**kargs):
         print('Establishing battle field control, stand by')
         self.L_x = L_x 
         self.L_y = L_y 
-        self.dL = 10 
+        self.dL = dL 
         self.nodes=self.generate_nodes(self.L_x,self.L_y,self.dL)
         self.UAV_feiji = []  
         self.patrol_area = 0
@@ -210,8 +210,8 @@ class BattleField(object):
         for node_i in self.nodes:
             node_i = self.get_neiwai_nodes(node_i,node_xy)
         self.patrol_area = node_xy
-        huatu = self.visual_patrol_area()
-        huatu.show_figure()
+        # huatu = self.visual_patrol_area()
+        # huatu.show_figure()
         return node_xy
 
     def generate_patrol_first3nodes(self, L_fanwei_min = 300.0,L_fanwei_max = 700.0):
@@ -393,7 +393,23 @@ class BattleField(object):
                 flag_inside_array[index_x,index_y] = self.nodes[index_nodes].flag_inside
         
         return flag_observed_array, flag_inside_array
-        
+
+    def get_UAV_location(self):
+        location = self.UAV_feiji.zuobiao.zhi
+        return location
+    
+    def get_UAV_direction(self):
+        sudu = self.UAV_feiji.sudu.zhi
+        sudu_norm = sudu / np.linalg.norm(sudu)
+        return sudu_norm
+
+    def check_UAV(self):
+        # check the location of UAV and avoid it go outside the BattleField 
+        flag = True
+        flag = flag and (self.UAV_feiji.zuobiao.zhi > (0-self.dL))
+        flag = flag and (self.UAV_feiji.zuobiao.zhi < (self.L_x+self.dL))
+        flag = flag and (self.UAV_feiji.zuobiao.zhi > (0 - self.dL))
+
 
 class BattleField_node(object):
     node_number = 0
