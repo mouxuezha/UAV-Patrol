@@ -2,7 +2,6 @@ import gym
 import numpy as np
 from gym import error, spaces
 from gym.spaces import Dict, Box, Discrete
-from transfer import transfer
 import sys
 import os
 
@@ -14,7 +13,8 @@ from huatu_support import huatu_support
 from zuobiaoxi import zuobiaoxi
 from zuobiaoxi import zuobiao
 from UAV import UAV
-from BattleField import BattleField
+# from BattleField import BattleField
+from BattleField2 import BattleField
 
 class UAVPatrolEnv(gym.Env):
     metadata = {'render.modes': ['human']}  
@@ -35,15 +35,19 @@ class UAVPatrolEnv(gym.Env):
         self.hangshu =  int(self.BattleField.L_x/self.BattleField.dL) + 1
         self.observation_space = Dict({"location": Box(0 , self.BattleField.L_x, shape=(2,), dtype=np.float64),
         "direction": Box(0 , 1, shape=(2,), dtype=np.float64), 
-        "omega": Box(-1*self.BattleField.UAV_feiji.omega_max , self.BattleField.UAV_feiji.omega_max, shape=(1,), dtype=np.float64),
+        "omega": Box(-1*self.BattleField.UAV_feiji.omega_v_max , self.BattleField.UAV_feiji.omega_v_max, shape=(1,), dtype=np.float64),
         "evaluate_array": Box(0 , self.BattleField.L_x, shape=(self.hangshu,self.hangshu), dtype=int) })
 
-        self.action_space = spaces.Box(low=-1.0*self.BattleField.UAV_feiji.omega_v_max, high= self.BattleField.UAV_feiji.omega_v_max, shape=(1, ), dtype=np.float64)
+        d_omega_max = 0.1 * self.BattleField.UAV_feiji.omega_v_max
+        self.action_space = spaces.Box(low=-1.0*d_omega_max, high= d_omega_max, shape=(1, ), dtype=np.float64)
         # observation_space.sample()
 
         self.state = self.state_init()
         self.reward = 0  
         self.ones_array = np.ones((self.hangshu,self.hangshu))
+
+    def BattleField_init_wrap(self):
+        self.BattleField_init(x_0=0,y_0=50*10**3,sudu_0 = 40,a_0=0,omega_0=0,dt = 60,omega_max = 0.2,sudu_max=50,r_observation=3000,L_x=100*10**3,L_y=100*10**3,dL=1*10**3,S_target=4*10**8)
 
     def BattleField_init(self,x_0=0,y_0=50*10**3,sudu_0 = 40,a_0=0,omega_0=0,dt = 60,omega_max = 0.2,sudu_max=50,r_observation=3000,L_x=100*10**3,L_y=100*10**3,dL=1*10**3,S_target=4*10**8,**kargs):
         # IS. m, s, rad
@@ -77,21 +81,23 @@ class UAVPatrolEnv(gym.Env):
         # x is action.
         self.N_step=self.N_step+1
 
-        print('UAVPatrolEnv: action is ' + str(x))
+        # print('UAVPatrolEnv: action is ' + str(x))
 
         # change the direction of UAV
         # battle field time step.
-        omega_new = self.BattleField.running(d_omega=x,d_a=0)
+        self.BattleField.running(d_omega=x,d_a=0)
+        # self.BattleField.running_mul(d_omega=x,d_a=0)
 
         # get location and vector 
         location_new = self.BattleField.get_UAV_location()
         direction_new = self.BattleField.get_UAV_direction()
+        omega_new = self.BattleField.get_UAV_omega()
     
         # get node array (int calculation)
         flag_observed_array, flag_inside_array = self.BattleField.get_nodes_array()
         inside_and_observed_array = np.multiply(flag_observed_array,flag_inside_array)
         evaluate_array = flag_observed_array * 1 + inside_and_observed_array * 10 
-        evaluate_array2 = flag_observed_array * 1 + inside_and_observed_array * 3 
+        # evaluate_array2 = flag_observed_array * 1 + inside_and_observed_array * 3 
 
         # update the state
         self.state['location'] = location_new
@@ -115,6 +121,8 @@ class UAVPatrolEnv(gym.Env):
         self.state = self.state_init()
         self.N_step = 0 
         self.reward = 0.0
+        self.BattleField_init_wrap()
+        self.BattleField.running(d_omega=0,d_a=0,first_step = True)
         return self.state
     
     def render(self):

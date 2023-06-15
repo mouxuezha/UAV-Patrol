@@ -5,7 +5,7 @@ import time
 
 import numpy as np
 import copy
-
+from queue import Queue
 WEIZHI =r'E:/EnglishMulu/UAV-Patrol' 
 import sys 
 sys.path.append(WEIZHI+r'/Support')
@@ -16,10 +16,10 @@ from zuobiaoxi import zuobiao
 sys.path.append(WEIZHI+r'/UAV')
 from UAV import UAV
 
-# sys.path.append(WEIZHI+r'/lib_cpp')
-sys.path.append(r'E:/EnglishMulu/shishi_py/x64/Debug')
+# # sys.path.append(WEIZHI+r'/lib_cpp')
+# sys.path.append(r'E:/EnglishMulu/shishi_py/x64/Debug')
 
-import shishi_py
+# import shishi_py
 
 class BattleField(object):
     def __init__(self,L_x=1000,L_y=1000,dL = 10 ,**kargs):
@@ -27,32 +27,35 @@ class BattleField(object):
         self.L_x = L_x 
         self.L_y = L_y 
         self.dL = dL 
-        self.nodes=self.generate_nodes(self.L_x,self.L_y,self.dL)
+        self.nodes=self.generate_nodes2(self.L_x,self.L_y,self.dL)
+        self.nodes_observed =[]
         self.UAV_feiji = []  
         self.patrol_area = 0
-
-        self.N_thread = 6
-        self.pool = ThreadPoolExecutor(max_workers=self.N_thread)
     
-    def generate_nodes(self,L_x,L_y,dL,**kargs):
+    def generate_nodes2(self,L_x,L_y,dL,**kargs):
         L_x_iteration = 0 
         L_y_iteration = 0 
         nodes = [] 
-        while(L_x_iteration<=L_x):
-            L_x_iteration = L_x_iteration +dL
-            L_y_iteration = 0 
-            while(L_y_iteration<=L_y):
-                L_y_iteration = L_y_iteration + dL
+        while(L_y_iteration<=L_y):
+            L_y_iteration = L_y_iteration +dL
+            L_x_iteration = 0 
+            nodes_line = [] 
+            while(L_x_iteration<=L_x):
+                L_x_iteration = L_x_iteration + dL
                 one_node_zuobiao = zuobiao(zhi=np.array([L_x_iteration,L_y_iteration]),zuobiaoxi=UAV.abs_coordinate)
                 one_node = BattleField_node(zuobiao=one_node_zuobiao)
-                nodes.append(one_node)
+                nodes_line.append(one_node) 
+            nodes.append(nodes_line)       
+        # while(L_x_iteration<=L_x):
+        #     L_x_iteration = L_x_iteration +dL
+        #     L_y_iteration = 0 
+        #     while(L_y_iteration<=L_y):
+        #         L_y_iteration = L_y_iteration + dL
+        #         one_node_zuobiao = zuobiao(zhi=np.array([L_x_iteration,L_y_iteration]),zuobiaoxi=UAV.abs_coordinate)
+        #         one_node = BattleField_node(zuobiao=one_node_zuobiao)
+        #         nodes.append(one_node)
         return nodes 
     
-    def generate_nodes2(self,L_x,L_y,dL,**kargs):
-        # using arrays to solve nodes.
-        raise Exception("generate_nodes2() is not impemented yet")
-    
-
     def UAV_online(self,**kargs):
         if 'UAV_feiji' in kargs:
             self.UAV_feiji = kargs['UAV_feiji']
@@ -75,17 +78,18 @@ class BattleField(object):
         y_unobserved = []
         x_inside = [] 
         y_inside = [] 
-        for node in self.nodes:
-            # node.running(self.UAV_feiji)
-            if node.flag_observed==True:
-                x_observed.append(node.zuobiao.zhi[0][0])
-                y_observed.append(node.zuobiao.zhi[0][1])
-            else:
-                x_unobserved.append(node.zuobiao.zhi[0][0])
-                y_unobserved.append(node.zuobiao.zhi[0][1])
-            if node.flag_inside== True:
-                x_inside.append(node.zuobiao.zhi[0][0])
-                y_inside.append(node.zuobiao.zhi[0][1])
+        for node_line in self.nodes:
+            for node in node_line:
+                # node.running(self.UAV_feiji)
+                if node.flag_observed==True:
+                    x_observed.append(node.zuobiao.zhi[0][0])
+                    y_observed.append(node.zuobiao.zhi[0][1])
+                else:
+                    x_unobserved.append(node.zuobiao.zhi[0][0])
+                    y_unobserved.append(node.zuobiao.zhi[0][1])
+                if node.flag_inside== True:
+                    x_inside.append(node.zuobiao.zhi[0][0])
+                    y_inside.append(node.zuobiao.zhi[0][1])
 
         huatu.ax = huatu.plot_point(huatu.ax,[x_observed,y_observed],yanse=huatu.get_color(index = 0),marker='o',markersize=0.5)
         huatu.ax = huatu.plot_point(huatu.ax,[x_unobserved,y_unobserved],yanse=huatu.get_color(index = 1),marker='o',markersize=0.5)   
@@ -96,86 +100,51 @@ class BattleField(object):
 
         return huatu
 
-    def running(self,d_omega=1,d_a=1,**kargs):
-        self.UAV_feiji.time_goes_by(d_omega=d_omega,d_a=d_a)
-        for node in self.nodes:
-            node.running(self.UAV_feiji)
+    def running(self,d_omega=1,d_a=1,first_step = False,**kargs):
+
+        if first_step:
+            pass # dont fly the UAV in first step.
+        else:
+            self.UAV_feiji.time_goes_by(d_omega=d_omega,d_a=d_a)
+            BattleField_node.running_clock(self.UAV_feiji.dt)
         
-    def running_mul(self,d_omega=1,d_a=1,**kargs):
+        x_index_low = self.__get_index_low(0)
+        x_index_high = self.__get_index_high(0)
+        y_index_low = self.__get_index_low(1)
+        y_index_high = self.__get_index_high(1) 
+        for x_index in range(x_index_low,x_index_high):
+            for y_index in range(y_index_low,y_index_high):
+                node = self.__get_node_single(x_index,y_index)
+                node.running(self.UAV_feiji)
+                if node.flag_observed: # add observed in the list (queue in fact)
+                    self.nodes_observed.append(node)
         
-        self.UAV_feiji.time_goes_by(d_omega=d_omega,d_a=d_a)
+        
+        panju = False
+        while panju: # remove out dated nodes.
+            if len(self.nodes_observed)==0:
+                # which means the UAV have fly away from the area, G
+                break           
+            self.nodes_observed[0].running_simple() 
+            if not(self.nodes_observed[0].flag_observed):
+                del self.nodes_observed[0]
+            else:
+                panju = False
 
-        N_thread = self.N_thread
-        geshu = len(self.nodes)
-        N_part = round(geshu / N_thread)
-        task_list = [] 
-        i=-1
-        for i in range(N_thread-1):     
-            # task_single = self.pool.submit(self.__running_nodes_single, self.nodes[N_part*i:N_part*(i+1)])
-            task_single = self.pool.submit(self.__running_nodes_single3, self.nodes[N_part*i:N_part*(i+1)])   
-            task_list.append(task_single)
-        i = i + 1 
-        # # task_single = self.pool.submit(self.__running_nodes_single, self.nodes[N_part*i:geshu])
-        task_single = self.pool.submit(self.__running_nodes_single3, self.nodes[N_part*i:geshu])
-        task_list.append(task_single)
-        # self.__running_nodes_single3(self.nodes[N_part*i:geshu]) # for debug 
+    def __get_node_single(self,x_index,y_index):
+        return self.nodes[y_index][x_index]
 
-        # waiting for finish
-        flag_finish = False
-        while(flag_finish == False):
-            flag_finish = True
-            time.sleep(0.00001)
-            for task_single in task_list:
-                flag_finish = flag_finish and task_single.done()
-
-    def __running_nodes_single(self,node_list):
-        # this is to solve some of the nodes in single thread.
-        for node in node_list:
-            node.running(self.UAV_feiji)
-        return node_list
+    def __get_index_low(self,ij):
+        x_index_low = round((self.UAV_feiji.zuobiao.zhi[0,ij] - self.UAV_feiji.r_detect) /self.dL) -1 
+        if x_index_low<0:
+            x_index_low = 0    
+        return x_index_low
     
-    def __running_nodes_single2(self,node_list):
-        node_x = np.array([])
-        node_y = np.array([])
-        geshu = len(node_list)
-        # print('UAV weizhi = ')
-        # print(self.UAV_feiji.zuobiao.zhi)
-        # print(self.UAV_feiji.zuobiao.zhi.shape)        
-        for i in range(geshu):
-            node_x = np.append(node_x,node_list[i].zuobiao.zhi[0,0])
-            node_y = np.append(node_y,node_list[i].zuobiao.zhi[0,1])
-        
-        # print('node_x = ')
-        # print(node_x)        
-        # print(node_x.shape)
-        jvli_array  = shishi_py.jvli(node_x,node_y,self.UAV_feiji.zuobiao.zhi[0])
-
-        # print('jvli_array = ', jvli_array)
-        for i in range(geshu):
-            node_list[i].running2(jvli_array[i],self.UAV_feiji)
-        return node_list
-
-    def __running_nodes_single3(self,node_list):
-        node_x = np.array([])
-        node_y = np.array([])
-        geshu = len(node_list)
-        # print('UAV weizhi = ')
-        # print(self.UAV_feiji.zuobiao.zhi)
-        # print(self.UAV_feiji.zuobiao.zhi.shape)        
-        for i in range(geshu):
-            node_x = np.append(node_x,node_list[i].zuobiao.zhi[0,0])
-            node_y = np.append(node_y,node_list[i].zuobiao.zhi[0,1])
-        
-        # print('self.UAV_feiji.r_detect = ')
-        # print(self.UAV_feiji.r_detect)        
-        # print(self.UAV_feiji.r_detect)
-        flag_array  = shishi_py.jvli2(node_x,node_y,self.UAV_feiji.zuobiao.zhi[0],self.UAV_feiji.r_detect)
-
-        # print('flag_array = ', flag_array)
-        for i in range(geshu):
-            node_list[i].running3(flag_array[i])
-        return node_list        
-
+    def __get_index_high(self,ij):
+        x_index_high = round((self.UAV_feiji.zuobiao.zhi[0,ij] + self.UAV_feiji.r_detect) /self.dL) + 1
+        if x_index_high>=len(self.nodes):
+            x_index_high=len(self.nodes)-1
+        return x_index_high
     # def generate_patrol_area1(self,**kargs):
     #     # total random strategy 
     #     # abolished, it might become something round.
@@ -298,8 +267,9 @@ class BattleField(object):
         self.patrol_area = node_xy
 
         # renew the flag of nodes.
-        for node_i in self.nodes:
-            node_i = self.get_neiwai_nodes(node_i,node_xy)
+        for node_line in self.nodes:
+            for node_i in node_line:
+                node_i = self.get_neiwai_nodes(node_i,node_xy)
         self.patrol_area = node_xy
         # huatu = self.visual_patrol_area()
         # huatu.show_figure()
@@ -462,27 +432,16 @@ class BattleField(object):
         L_x = self.L_x
         L_y = self.L_y
         dL = self.dL
-        L_x_iteration = 0 
-        L_y_iteration = 0
         hangshu =  int(L_x/dL) +1
         flag_observed_array = np.zeros((hangshu,hangshu),dtype=int)
         flag_inside_array = np.zeros((hangshu,hangshu),dtype=int)
-        index_x = -1
-        index_y = -1 
-        index_nodes = -1  
-        
-        while(L_x_iteration<=L_x):
-            L_x_iteration = L_x_iteration + dL
-            index_x = index_x + 1
-            L_y_iteration = 0 
-            index_y = -1 
-            while(L_y_iteration<=L_y):
-                L_y_iteration = L_y_iteration + dL
-                index_y = index_y + 1 
-                index_nodes = index_nodes + 1
-                flag_observed_array[index_x,index_y] = self.nodes[index_nodes].flag_observed
-                flag_inside_array[index_x,index_y] = self.nodes[index_nodes].flag_inside
-        
+
+        for index_x in range(hangshu):
+            for index_y in range(hangshu):
+                node = self.__get_node_single(index_x,index_y)
+                flag_observed_array[index_x,index_y] = node.flag_observed
+                flag_inside_array[index_x,index_y] =node.flag_inside
+
         return flag_observed_array, flag_inside_array
 
     def get_UAV_location(self):
@@ -508,53 +467,39 @@ class BattleField(object):
 
 class BattleField_node(object):
     node_number = 0
+    time_now = 0
+
+    @staticmethod
+    def running_clock(dt):
+        BattleField_node.time_now = BattleField_node.time_now + dt 
+
     def __init__(self,zuobiao,**kargs):
         BattleField_node.node_number =  BattleField_node.node_number + 1
         self.index = BattleField_node.node_number
         self.zuobiao = zuobiao
         self.time_interval = 1 
         self.time_detected_list = [0.0] 
-        self.time_now = 0 
         self.flag_observed = False
         self.flag_inside = False 
 
     def running(self,UAV_feiji,**kargs):
-        self.time_now = self.time_now + UAV_feiji.dt 
-
         jvli_vector = self.zuobiao.zhi - UAV_feiji.zuobiao.zhi
         jvli_abs = np.linalg.norm(jvli_vector) 
 
         if jvli_abs<UAV_feiji.r_detect:
             # which means this node is under observation
-            self.time_detected_list.append(self.time_now)
+            self.time_detected_list.append(BattleField_node.time_now)
             self.flag_observed = True
         else:
             # which means this node is not under observation now
-            time_after_observed = self.time_now - self.time_detected_list[-1]
+            time_after_observed = BattleField_node.time_now - self.time_detected_list[-1]
             if time_after_observed > self.time_interval:
                 self.flag_observed = False
 
-    def running2(self,jvli_abs,UAV_feiji):
-        if jvli_abs<UAV_feiji.r_detect:
-            # which means this node is under observation
-            self.time_detected_list.append(self.time_now)
-            self.flag_observed = True
-        else:
-            # which means this node is not under observation now
-            time_after_observed = self.time_now - self.time_detected_list[-1]
-            if time_after_observed > self.time_interval:
-                self.flag_observed = False
-
-    def running3(self,flag):
-        if flag:
-            # which means this node is under observation
-            self.time_detected_list.append(self.time_now)
-            self.flag_observed = True
-        else:
-            # which means this node is not under observation now
-            time_after_observed = self.time_now - self.time_detected_list[-1]
-            if time_after_observed > self.time_interval:
-                self.flag_observed = False                
+    def running_simple(self):
+        time_after_observed = BattleField_node.time_now - self.time_detected_list[-1]
+        if time_after_observed > self.time_interval:
+            self.flag_observed = False 
 
     def visual_node(self,huatu):
         if self.flag_observed==True:
@@ -572,8 +517,9 @@ if __name__ == '__main__':
     shishi_BattleField.UAV_online(UAV_feiji = shishi1)
     shishi_BattleField.generate_patrol_area2(S_target=160000,L_fanwei_min = 100.0,L_fanwei_max = 900.0)
 
+    shishi_BattleField.running(d_omega=1,d_a=0,first_step=True)
     shishi_BattleField.running(d_omega=1,d_a=0)
-    shishi_BattleField.running_mul(d_omega=1,d_a=0)
+    # shishi_BattleField.running_mul(d_omega=1,d_a=0)
 
     flag_observed_array, flag_inside_array = shishi_BattleField.get_nodes_array() 
     
