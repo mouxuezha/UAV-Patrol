@@ -270,9 +270,24 @@ class BattleField(object):
         for node_line in self.nodes:
             for node_i in node_line:
                 node_i = self.get_neiwai_nodes(node_i,node_xy)
-        self.patrol_area = node_xy
+        # self.patrol_area = node_xy
         # huatu = self.visual_patrol_area()
         # huatu.show_figure()
+        # flag_good = self.check_shape2(node_xy)
+        if flag_good:
+            return node_xy
+        else:
+            return [] 
+        # return node_xy
+
+    def generate_patrol_area2_gai(self,S_target=0,L_fanwei_min = 300.0,L_fanwei_max = 700.0,**kargs):
+        node_xy = [] 
+        while(len(node_xy)==0):
+            node_xy = self.generate_patrol_area2(S_target=S_target,L_fanwei_min=L_fanwei_min,L_fanwei_max=L_fanwei_max,**kargs)
+        self.patrol_area = node_xy
+        huatu = self.visual_patrol_area()
+        huatu.show_figure()
+        flag_good = self.check_shape2(node_xy)            
         return node_xy
 
     def generate_patrol_first3nodes(self, L_fanwei_min = 300.0,L_fanwei_max = 700.0):
@@ -385,6 +400,32 @@ class BattleField(object):
             node_xy = copy.deepcopy(node_xy2) 
             
         return node_xy2
+
+    def check_shape2(self,node_xy):
+        # this is to avoid concave, again. 
+        extend_xy = node_xy
+        extend_xy = np.append(extend_xy,extend_xy[0].reshape(1,2),axis=0)  
+        geshu = len(node_xy)  
+        vector1 = extend_xy[0,:] - extend_xy[-1,:]
+        jiaodu_accumulate = 0 
+        for i in range(geshu):
+            vector2 = copy.deepcopy(vector1)
+            vector1 = extend_xy[i+1,:] - extend_xy[i,:]          
+            chengji1 = vector1.dot(vector2) 
+            yuxian = chengji1/vector2.abs()/vector1.abs()/1.0
+            cross_zhi = np.cross(vector2,vector1)
+            if cross_zhi>=0:
+                jiaodu = np.arccos(yuxian)
+            else:
+                jiaodu = np.arccos(yuxian) * (-1.0)
+            jiaodu_accumulate = jiaodu_accumulate + jiaodu
+        
+        if jiaodu_accumulate>np.pi*2 + 0.1:
+            # which means there are more than one circle
+            flag_good = False
+        else: 
+            flag_good = True
+        return flag_good
 
     def scale_shape(self,node_xy,S_target):
         S_all = self.get_area_from_nodes(node_xy)
@@ -515,7 +556,7 @@ if __name__ == '__main__':
     shishi1.set_chuzhi(sudu_0=np.array([500,0]),a_0=0,omega_0=0,dt = 0.1)
     shishi_BattleField = BattleField(L_x=1000,L_y=1000)
     shishi_BattleField.UAV_online(UAV_feiji = shishi1)
-    shishi_BattleField.generate_patrol_area2(S_target=160000,L_fanwei_min = 100.0,L_fanwei_max = 900.0)
+    shishi_BattleField.generate_patrol_area2_gai(S_target=160000,L_fanwei_min = 100.0,L_fanwei_max = 900.0)
 
     shishi_BattleField.running(d_omega=1,d_a=0,first_step=True)
     shishi_BattleField.running(d_omega=1,d_a=0)

@@ -65,16 +65,12 @@ class CriticNetwork(nn.Layer):
 
         # 保存Layer参数
         # paddle.save(layer.state_dict(), canshu_name)
-        for i in range(len(self.layers_linear)):
-            canshu_name = location + r'\linear_net'+str(i) + r'.pdparams'
-            paddle.save(self.layers_linear[i].state_dict(), canshu_name)
+        # for i in range(len(self.layers_linear)):
+        #     canshu_name = location + r'\linear_net'+str(i) + r'.pdparams'
+        #     paddle.save(self.layers_linear[i].state_dict(), canshu_name)
 
-        # 保存优化器参数
-        
-        paddle.save(adam.state_dict(), adam_name)
-        # 保存检查点checkpoint信息
-        
-        paddle.save(final_checkpoint, checkpoint_name)
+        paddle.save(self.state_dict(), canshu_name)
+
     
     def load_network(self,**kargs):
         if 'location' in kargs:
@@ -85,17 +81,17 @@ class CriticNetwork(nn.Layer):
         adam_name = location + r'\adam.pdopt'
         checkpoint_name = location + r'\final_checkpoint.pkl'            
         # 载入模型参数、优化器参数和最后一个epoch保存的检查点
-        # layer_state_dict = paddle.load(canshu_name)
-        for i in range(len(self.layers_linear)):
-            canshu_name = location + r'\linear_net'+str(i) + r'.pdparams'
-            layer_state_dict = paddle.load(self.layers_linear[i].state_dict(), canshu_name)  
-            self.layers_linear[i].set_state_dict(layer_state_dict)
-        opt_state_dict = paddle.load(adam_name)
+        layer_state_dict = paddle.load(canshu_name)
+        # for i in range(len(self.layers_linear)):
+        #     canshu_name = location + r'\linear_net'+str(i) + r'.pdparams'
+        #     layer_state_dict = paddle.load(self.layers_linear[i].state_dict(), canshu_name)  
+        #     self.layers_linear[i].set_state_dict(layer_state_dict)
+        # opt_state_dict = paddle.load(adam_name)
         final_checkpoint_dict = paddle.load(checkpoint_name)
 
         # 将load后的参数与模型关联起来
-        # layer.set_state_dict(layer_state_dict)
-        adam.set_state_dict(opt_state_dict)
+        self.set_state_dict(layer_state_dict)
+        # adam.set_state_dict(opt_state_dict)
 
         # 打印出来之前保存的 checkpoint 信息
         print("Loaded Final Checkpoint. Epoch : {}, Loss : {}".format(final_checkpoint_dict["epoch"], final_checkpoint_dict["loss"].numpy()))

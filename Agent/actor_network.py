@@ -10,23 +10,11 @@ import random
 import paddle.nn.functional as F
 
 class ActorNetwork(nn.Layer):
-    def __init__(self,**kargs):
+    def __init__(self,state_dim=[4,101], action_dim =1 , **kargs):
         if 'LAYER_SIZE' in kargs:
             self.LAYER_SIZE = kargs['LAYER_SIZE']
         else:
             self.LAYER_SIZE = [500,500,500] 
-        if 'LEARNING_RATE' in kargs:
-            self.LEARNING_RATE = kargs['LEARNING_RATE']
-        else:
-            self.LEARNING_RATE = 1e-5
-        if 'TAU' in kargs:
-            self.TAU = kargs['TAU']
-        else: 
-            self.TAU = 0.005
-        if 'L2' in kargs:
-            self.L2 = kargs['L2']
-        else:
-            self.L2 = 0.01        
         self.state_dim = state_dim
         self.action_dim = action_dim 
         super(ActorNetwork, self).__init__()
@@ -69,4 +57,29 @@ class ActorNetwork(nn.Layer):
             action = self.forward(state).squeeze() + self.is_train * epsilon * self.noisy.sample([1]).squeeze(0)
         return 2 * paddle.clip(action, -1, 1).numpy() 
     
+    def save_network(self,**kargs):
+        if 'location' in kargs:
+            location = kargs['location'] + r'\saved_actor_networks'
+        else:
+            location = self.location        
+        # https://www.paddlepaddle.org.cn/documentation/docs/zh/guides/beginner/model_save_load_cn.html#moxingbaocunyujiazai
+        canshu_name = location + r'\linear_net.pdparams'
+        adam_name = location + r'\adam.pdopt'
+        checkpoint_name = location + r'\final_checkpoint.pkl'
+        paddle.save(self.state_dict(), canshu_name)
+
     
+    def load_network(self,**kargs):
+        if 'location' in kargs:
+            location = kargs['location'] + r'\saved_actor_networks'
+        else:
+            location = self.location
+        canshu_name = location + r'\linear_net.pdparams'
+        adam_name = location + r'\adam.pdopt'
+        checkpoint_name = location + r'\final_checkpoint.pkl'            
+        layer_state_dict = paddle.load(canshu_name)
+        final_checkpoint_dict = paddle.load(checkpoint_name)
+
+        self.set_state_dict(layer_state_dict)
+
+        print("Loaded Final Checkpoint. Epoch : {}, Loss : {}".format(final_checkpoint_dict["epoch"], final_checkpoint_dict["loss"].numpy()))
