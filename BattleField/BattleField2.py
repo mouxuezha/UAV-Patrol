@@ -1,11 +1,7 @@
 # this is to define battlefield 
-from concurrent.futures import ThreadPoolExecutor
-import threading
-import time 
 
 import numpy as np
 import copy
-from queue import Queue
 WEIZHI =r'E:/EnglishMulu/UAV-Patrol' 
 import sys 
 sys.path.append(WEIZHI+r'/Support')
@@ -273,7 +269,7 @@ class BattleField(object):
         # self.patrol_area = node_xy
         # huatu = self.visual_patrol_area()
         # huatu.show_figure()
-        # flag_good = self.check_shape2(node_xy)
+        flag_good = self.check_shape2(node_xy)
         if flag_good:
             return node_xy
         else:
@@ -286,8 +282,7 @@ class BattleField(object):
             node_xy = self.generate_patrol_area2(S_target=S_target,L_fanwei_min=L_fanwei_min,L_fanwei_max=L_fanwei_max,**kargs)
         self.patrol_area = node_xy
         huatu = self.visual_patrol_area()
-        huatu.show_figure()
-        flag_good = self.check_shape2(node_xy)            
+        huatu.show_figure()      
         return node_xy
 
     def generate_patrol_first3nodes(self, L_fanwei_min = 300.0,L_fanwei_max = 700.0):
@@ -412,7 +407,10 @@ class BattleField(object):
             vector2 = copy.deepcopy(vector1)
             vector1 = extend_xy[i+1,:] - extend_xy[i,:]          
             chengji1 = vector1.dot(vector2) 
-            yuxian = chengji1/vector2.abs()/vector1.abs()/1.0
+            print(chengji1)
+            print(np.linalg.norm(vector2))
+            print(np.linalg.norm(vector1))
+            yuxian = chengji1/np.linalg.norm(vector2)/np.linalg.norm(vector1)
             cross_zhi = np.cross(vector2,vector1)
             if cross_zhi>=0:
                 jiaodu = np.arccos(yuxian)
