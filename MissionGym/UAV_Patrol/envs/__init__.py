@@ -1,2 +1,0 @@
-from UAV_Patrol_gym.envs.UAV_Patrol_env import UAV_PatrolEnv
-from UAV_Patrol_gym.envs.UAV_Patrol_env import ShishiEnvExtend
