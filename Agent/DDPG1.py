@@ -14,7 +14,7 @@ import paddle
 from visualdl import LogWriter
 import paddle.nn.functional as F
 
-class DDPG2:
+class DDPG:
     """docstring for DDPG, En Taro XXH"""
     def __init__(self,env,**kargs) -> None:
         if 'REPLAY_START_SIZE' in kargs:
@@ -46,17 +46,24 @@ class DDPG2:
             self.L2 = kargs['L2']
         else:
             self.L2 = 0.01 
+        
         self.BATCH_SIZE = 32 # 64 
         self.GAMMA = 0.99
         self.environment = env
         self.step_max = 200 
         self.epsilon = 1 # this is to control the noise.
 
-        self.actor_network = ActorNetwork(self.state_dim,self.action_dim)
-        self.critic_network = CriticNetwork(self.state_dim,self.action_dim)
+        self.final_checkpoint = dict()
+        
+        if self.__env_switch()==0:
+            self.__init_Pendulum()
+        
 
-        self.target_actor_network = ActorNetwork(self.state_dim,self.action_dim)
-        self.target_critic_network = CriticNetwork(self.state_dim,self.action_dim)
+        self.actor_network = ActorNetwork(self.state_dim,self.action_dim,self.__env_switch())
+        self.critic_network = CriticNetwork(self.state_dim,self.action_dim,self.__env_switch())
+
+        self.target_actor_network = ActorNetwork(self.state_dim,self.action_dim,self.__env_switch())
+        self.target_critic_network = CriticNetwork(self.state_dim,self.action_dim,self.__env_switch())
 
         # 定义优化器
         self.critic_optim = paddle.optimizer.Adam(parameters=self.critic_network.parameters(), learning_rate=self.LEARNING_RATE_a)
@@ -69,7 +76,19 @@ class DDPG2:
         self.epochs = 250
 
         self.writer = LogWriter('logs')
-        
+
+    def __env_switch(self):
+        # 'Pendulum-v1' is case 0 
+        if self.environment.env.env.env.spec.id == 'Pendulum-v1':
+            return 0 
+            self.__init_Pendulum()   
+        else:
+            raise Exception('DDPG: Invalid env case, G!')     
+
+    def __init_Pendulum(self):
+        self.state_dim = 3 
+        self.action_dim = 1 
+
     def set_location(self,location=r'E:\EnglishMulu\agents',index=0):
         while os.path.exists(location + r'\agent'+str(index)):
             index = index + 1 
@@ -136,13 +155,18 @@ class DDPG2:
         self.writer.add_scalar('episode reward', episode_reward, epoch)
         if epoch % 50 == 0:
             print('Epoch:{}, episode reward is {}'.format(epoch, episode_reward))
-        
+            self.final_checkpoint["epoch"] = epoch
+            self.final_checkpoint["actor_loss"] = actor_loss
+            self.final_checkpoint["critic_loss"] = critic_loss        
+            
+         
         if epoch % 200 == 0:
-            paddle.save(self.actor_network.state_dict(), 'model/ddpg-actor' + str(epoch) + '.para')
-            paddle.save(self.critic_network.state_dict(), 'model/ddpg-critic' + str(epoch) + '.para')
-            self.actor_network.save_network()
-            self.critic_network.save_network()
-            print('model saved!')    
+            # paddle.save(self.actor_network.state_dict(), 'model/ddpg-actor' + str(epoch) + '.para')
+            # paddle.save(self.critic_network.state_dict(), 'model/ddpg-critic' + str(epoch) + '.para')
+            # self.actor_network.save_network()
+            # self.critic_network.save_network()
+            # print('model saved!') 
+            self.save_agent(index= epoch)   
 
     def save_agent(self,index=0):
         self.location = self.set_location(index=index)
@@ -150,5 +174,19 @@ class DDPG2:
             os.makedir(self.location)
         except: 
             print('DDPG: agent file exists')
-        self.actor_network.save_network(self.location)
-        self.critic_network.save_network(self.location)        
+        self.actor_network.save_network(self.actor_optim,self.final_checkpoint,location = self.location)
+        self.critic_network.save_network(self.critic_optim,self.final_checkpoint,location = self.location)
+
+    def load_agent(self,**kargs):
+        if 'location' in kargs :
+            location = kargs['location']
+        else:
+            location = self.location
+        actor_adam_state_dict , checkpoint_dict = self.actor_network.load_network(location = location)
+        critic_adam_state_dict , checkpoint_dict = self.critic_network.load_network(location = location)
+
+        self.actor_optim.set_state_dict(actor_adam_state_dict)
+        self.critic_optim.set_state_dict(critic_adam_state_dict)
+        self.final_checkpoint = checkpoint_dict
+
+        print('DDPG: agent loaded successfully')

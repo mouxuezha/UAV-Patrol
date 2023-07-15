@@ -11,16 +11,21 @@ import random
 import paddle.nn.functional as F
 
 class CriticNetwork(nn.Layer):
-    def __init__(self, location_dim=2,direction_dim = 2 , omega_dim = 1,evaluate_array_dim=(101,101)):
+    def __init__(self, state_dim=[2,2,1],action_dim=1,env_switch=0,evaluate_array_dim=(101,101)):
         # state = {"location": location,
         #          "direction": direction,
         #          "omega": omega,
         #          "evaluate_array": evaluate_array}        
-        super().__init__(CriticNetwork, self).__init__()
-        self.location_dim = location_dim 
-        self.direction_dim = direction_dim 
-        self.omega_dim = omega_dim
-        self.evaluate_array_dim = evaluate_array_dim
+        super(CriticNetwork, self).__init__()
+        self.env_switch = env_switch
+        if self.env_switch == 0 :
+            self.state_dim = state_dim
+        else:
+            self.state_dim = state_dim
+            self.location_dim = state_dim[0] 
+            self.direction_dim = state_dim[1]  
+            self.omega_dim = state_dim[2] 
+            self.evaluate_array_dim = evaluate_array_dim
         self.set_location()
         self.layers_linear = []
         print('CriticNetwork under construction')
@@ -53,7 +58,7 @@ class CriticNetwork(nn.Layer):
                 x = paddle.concat((x, a), axis=1)
         return x
     
-    def save_network(self,**kargs):
+    def save_network(self,adam,checkpoint,**kargs):
         if 'location' in kargs:
             location = kargs['location'] + r'\saved_critic_networks'
         else:
@@ -70,7 +75,8 @@ class CriticNetwork(nn.Layer):
         #     paddle.save(self.layers_linear[i].state_dict(), canshu_name)
 
         paddle.save(self.state_dict(), canshu_name)
-
+        paddle.save(adam.state_dict(), adam_name)
+        paddle.save(checkpoint, checkpoint_name)
     
     def load_network(self,**kargs):
         if 'location' in kargs:
@@ -80,18 +86,19 @@ class CriticNetwork(nn.Layer):
         canshu_name = location + r'\linear_net.pdparams'
         adam_name = location + r'\adam.pdopt'
         checkpoint_name = location + r'\final_checkpoint.pkl'            
-        # 载入模型参数、优化器参数和最后一个epoch保存的检查点
-        layer_state_dict = paddle.load(canshu_name)
-        # for i in range(len(self.layers_linear)):
-        #     canshu_name = location + r'\linear_net'+str(i) + r'.pdparams'
-        #     layer_state_dict = paddle.load(self.layers_linear[i].state_dict(), canshu_name)  
-        #     self.layers_linear[i].set_state_dict(layer_state_dict)
-        # opt_state_dict = paddle.load(adam_name)
-        final_checkpoint_dict = paddle.load(checkpoint_name)
 
-        # 将load后的参数与模型关联起来
-        self.set_state_dict(layer_state_dict)
-        # adam.set_state_dict(opt_state_dict)
+        try:           
+            # 载入模型参数、优化器参数和最后一个epoch保存的检查点
+            layer_state_dict = paddle.load(canshu_name)
+            # final_checkpoint_dict = paddle.load(checkpoint_name)
 
-        # 打印出来之前保存的 checkpoint 信息
-        print("Loaded Final Checkpoint. Epoch : {}, Loss : {}".format(final_checkpoint_dict["epoch"], final_checkpoint_dict["loss"].numpy()))
+            # 将load后的参数与模型关联起来
+            self.set_state_dict(layer_state_dict)
+            # adam.set_state_dict(opt_state_dict)
+            adam_state_dict = paddle.load(adam_name)
+            checkpoint_dict = paddle.load(checkpoint_name)            
+            return adam_state_dict , checkpoint_dict
+            # 打印出来之前保存的 checkpoint 信息
+            # print("Loaded Final Checkpoint. Epoch : {}, Loss : {}".format(final_checkpoint_dict["epoch"], final_checkpoint_dict["loss"].numpy()))
+        except:
+            print('critic: attension, something wrong when loading')

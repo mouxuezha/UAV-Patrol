@@ -1,25 +1,22 @@
 # this is actor network using paddle and dynamic graph.
-import gym
 import paddle
 import paddle.nn as nn
-from itertools import count
 from paddle.distribution import Normal
 import numpy as np
-from collections import deque
-import random
 import paddle.nn.functional as F
 
 class ActorNetwork(nn.Layer):
-    def __init__(self,state_dim=[4,101], action_dim =1 , **kargs):
+    def __init__(self,state_dim=[4,101], action_dim =1 , env_switch =0,**kargs):
         if 'LAYER_SIZE' in kargs:
             self.LAYER_SIZE = kargs['LAYER_SIZE']
         else:
             self.LAYER_SIZE = [500,500,500] 
         self.state_dim = state_dim
         self.action_dim = action_dim 
+        self.env_switch = env_switch
         super(ActorNetwork, self).__init__()
         self.layers_linear = [] 
-        print('CriticNetwork under construction')
+        print('ActorNetwork under construction')
 
     def create_network(self,state_dim,action_dim,LAYER_SIZE,is_train=True):
         N_layers = len(LAYER_SIZE)
@@ -57,16 +54,19 @@ class ActorNetwork(nn.Layer):
             action = self.forward(state).squeeze() + self.is_train * epsilon * self.noisy.sample([1]).squeeze(0)
         return 2 * paddle.clip(action, -1, 1).numpy() 
     
-    def save_network(self,**kargs):
+    def save_network(self,adam,checkpoint,**kargs):
         if 'location' in kargs:
             location = kargs['location'] + r'\saved_actor_networks'
         else:
             location = self.location        
-        # https://www.paddlepaddle.org.cn/documentation/docs/zh/guides/beginner/model_save_load_cn.html#moxingbaocunyujiazai
+        # https://www.paddlepaddle.org.cn/documentation/docs/zh/guides/beginner/model_save_load_cn.html
+        # #moxingbaocunyujiazai
         canshu_name = location + r'\linear_net.pdparams'
         adam_name = location + r'\adam.pdopt'
         checkpoint_name = location + r'\final_checkpoint.pkl'
         paddle.save(self.state_dict(), canshu_name)
+        paddle.save(adam.state_dict(), adam_name)
+        paddle.save(checkpoint, checkpoint_name)
 
     
     def load_network(self,**kargs):
@@ -76,10 +76,15 @@ class ActorNetwork(nn.Layer):
             location = self.location
         canshu_name = location + r'\linear_net.pdparams'
         adam_name = location + r'\adam.pdopt'
-        checkpoint_name = location + r'\final_checkpoint.pkl'            
-        layer_state_dict = paddle.load(canshu_name)
-        final_checkpoint_dict = paddle.load(checkpoint_name)
+        checkpoint_name = location + r'\final_checkpoint.pkl' 
+        try:           
+            layer_state_dict = paddle.load(canshu_name)
+            adam_state_dict = paddle.load(adam_name)
+            checkpoint_dict = paddle.load(checkpoint_name)
 
-        self.set_state_dict(layer_state_dict)
+            self.set_state_dict(layer_state_dict)
+            return adam_state_dict , checkpoint_dict
 
-        print("Loaded Final Checkpoint. Epoch : {}, Loss : {}".format(final_checkpoint_dict["epoch"], final_checkpoint_dict["loss"].numpy()))
+            # print("Loaded Final Checkpoint. Epoch : {}, Loss : {}".format(final_checkpoint_dict["epoch"], final_checkpoint_dict["loss"].numpy()))
+        except:
+            print('actor: attension, something wrong when loading')
