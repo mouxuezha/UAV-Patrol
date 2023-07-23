@@ -47,11 +47,12 @@ class DDPG:
         else:
             self.L2 = 0.01 
         
-        self.BATCH_SIZE = 32 # 64 
+        # self.BATCH_SIZE = 32 # 64 
         self.GAMMA = 0.99
-        self.environment = env
+        self.env = env
         self.step_max = 200 
         self.epsilon = 1 # this is to control the noise.
+        self.explore = 50000
 
         self.final_checkpoint = dict()
         
@@ -70,8 +71,8 @@ class DDPG:
         self.actor_optim = paddle.optimizer.Adam(parameters=self.actor_network.parameters(), learning_rate=self.LEARNING_RATE_c)
 
         self.memory_replay = ReplayBuffer(50000)
-        begin_train = False
-        batch_size = 32
+        self.begin_train = False
+        self.batch_size = 32
         self.learn_steps = 0
         self.epochs = 250
 
@@ -79,7 +80,7 @@ class DDPG:
 
     def __env_switch(self):
         # 'Pendulum-v1' is case 0 
-        if self.environment.env.env.env.spec.id == 'Pendulum-v1':
+        if self.env.env.env.env.spec.id == 'Pendulum-v1':
             return 0 
             self.__init_Pendulum()   
         else:
@@ -99,29 +100,49 @@ class DDPG:
         for target_param, param in zip(target.parameters(), source.parameters()):
             target_param.set_value( target_param * (1.0 - tau) + param * tau) 
 
+    def unpackage(self,batch):
+        batch_state = [] 
+        batch_next_state= [] 
+        batch_action=[] 
+        batch_reward=[]
+        for i in range(self.batch_size):
+            batch_state.append(batch[i][0])
+            batch_action.append(batch[i][1])
+            batch_reward.append(batch[i][2])
+            batch_next_state.append(batch[i][3].reshape((3,)))
+        
+        return batch_state, batch_next_state, batch_action, batch_reward
+
+
     def trainning(self):
         for epoch in range(0, self.epochs):
             state = self.env.reset()
+            state = state[0] # Pendulum-v1直接给出的话后面会有一个奇怪的{}
             episode_reward = 0
             for time_step in range(self.step_max):
                 action = self.actor_network.select_action(self.epsilon, state)
-                next_state, reward, done, _ = self.env.step([action])
+                next_state, reward, done, _ ,_= self.env.step([action])
                 episode_reward += reward
                 reward = (reward + 8.1) / 8.1 #这尼玛？这么暴力的操作，就直接写在代码里
-                self.memory_replay.add((state, next_state, action, reward))
+                # self.memory_replay.add((state, next_state, action, reward)) # 这个又是，给的代码调不通。那只能自己想着点 改改了。而且顺序也不对
+                self.memory_replay.add(state, action, reward,next_state, done) 
 
                 if self.memory_replay.size() > 1280:
-                    learn_steps += 1
-                    if not begin_train:
+                    self.learn_steps += 1
+                    if not self.begin_train:
                         print('train begin!')
-                        begin_train = True
+                        self.begin_train = True
                     experiences = self.memory_replay.sample(self.batch_size, False)
-                    batch_state, batch_next_state, batch_action, batch_reward = zip(*experiences)
+                    # experiences = self.memory_replay.get_batch(self.batch_size, False) 
+                    batch_state, batch_next_state, batch_action, batch_reward = self.unpackage(experiences)
+                    # 原版写了个zip(*experience)在这里，运行下来是不对的。手动改了个unpackge
 
-                    batch_state = paddle.to_tensor(batch_state,dtype="float32")
+                    batch_state = paddle.to_tensor(batch_state,dtype="float32").unsqueeze(0)
                     batch_next_state = paddle.to_tensor(batch_next_state,dtype="float32")
-                    batch_action = paddle.to_tensor(batch_action,dtype="float32").unsqueeze(1)
-                    batch_reward = paddle.to_tensor(batch_reward,dtype="float32").unsqueeze(1)
+                    # batch_next_state = batch_next_state.squeeze(2)
+                    batch_next_state = batch_next_state.unsqueeze(0)
+                    batch_action = paddle.to_tensor(batch_action,dtype="float32").unsqueeze(0)
+                    batch_reward = paddle.to_tensor(batch_reward,dtype="float32").unsqueeze(0)
                     # 均方误差 y - Q(s, a) ， y是目标网络所看到的预期收益， 而 Q(s, a)是Critic网络预测的操作值。
                     # y是一个移动的目标，评论者模型试图实现的目标；这个目标通过缓慢的更新目标模型来保持稳定。 
                     with paddle.no_grad():
@@ -134,7 +155,7 @@ class DDPG:
                     critic_loss.backward()
                     self.critic_optim.step()
 
-                    self.writer.add_scalar('critic loss', critic_loss.numpy(), learn_steps)
+                    self.writer.add_scalar('critic loss', critic_loss.numpy(), self.learn_steps)
                     # 使用Critic网络给定值的平均值来评价Actor网络采取的行动。 我们力求使这一数值最大化。 
                     # 因此，我们更新了Actor网络，对于一个给定状态，它产生的动作尽量让Critic网络给出高的评分。 
                     self.critic_network.eval()

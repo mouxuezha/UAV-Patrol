@@ -17,27 +17,53 @@ class ActorNetwork(nn.Layer):
         super(ActorNetwork, self).__init__()
         self.layers_linear = [] 
         print('ActorNetwork under construction')
+        self.create_network(self.state_dim,self.action_dim,self.LAYER_SIZE,is_train=True)
 
     def create_network(self,state_dim,action_dim,LAYER_SIZE,is_train=True):
         N_layers = len(LAYER_SIZE)
         real_size = np.append(state_dim,LAYER_SIZE)
         real_size = np.append(real_size,np.array([1]))
 
-        for i in range(N_layers):
+        for i in range(len(real_size)-1):
             # get the omegas 
             if i == 0:
                 # before add the action. 
-                yiceng = nn.Linear(real_size[i]+action_dim, real_size[i+1])
+                # yiceng = nn.Linear(real_size[i]+action_dim, real_size[i+1])
+                yiceng = nn.Linear(real_size[i], real_size[i+1])
                 # Wi = self.variable([real_size[i],real_size[i+1]],real_size[i])
             else: 
                 # which means the lay next to the action. w2 and w3
                 # Wi = self.variable([real_size[i],real_size[i+1]],real_size[i]+action_dim)
                 yiceng = nn.Linear(real_size[i], real_size[i+1])
             self.layers_linear.append(yiceng)
+            asdasdas#找到问题了，每一层的_parameter没有自动地更新到self里面，所以后面是取不到的。这可以说就是动态图带来的问题了，没能显式地定义weight和bias。好好看好好学。 
         self.relu = nn.ReLU()
         self.tanh = nn.Tanh()
         self.noisy = Normal(0, 0.2)
         self.is_train = is_train  
+
+    def parameters(self):
+        # 为了图自动化，我这个里面各层网格写成了list，导致它这个原版用不了了。
+        """
+
+        Returns a list of all Parameters from current layer and its sub-layers.
+
+        Returns:
+            list of Tensor, a list of Parameters.
+
+        Examples:
+            .. code-block:: python
+
+                import paddle
+
+                linear = paddle.nn.Linear(1,1)
+                print(linear.parameters())  # print linear_0.w_0 and linear_0.b_0
+
+        """     
+        paramter_list = [] 
+        for i in range(len(self.layers_linear)):
+           paramter_list.append(self.layers_linear[i].parameters()) 
+        return paramter_list
 
     def forward(self,x):
         for i in range(len(self.layers_linear)):
@@ -51,7 +77,9 @@ class ActorNetwork(nn.Layer):
     def select_action(self, epsilon, state):
         state = paddle.to_tensor(state,dtype="float32").unsqueeze(0) # 这里肯定得后面再来重写的。要把卷积整进去。
         with paddle.no_grad():
-            action = self.forward(state).squeeze() + self.is_train * epsilon * self.noisy.sample([1]).squeeze(0)
+            # print(self.noisy.sample([1]).shape)
+            # action = self.forward(state).squeeze(0) + self.is_train * epsilon * self.noisy.sample([1]).squeeze(0) # 这个是示例代码，但是应该不对
+            action = self.forward(state).squeeze(0) + self.is_train * epsilon * self.noisy.sample([1])
         return 2 * paddle.clip(action, -1, 1).numpy() 
     
     def save_network(self,adam,checkpoint,**kargs):

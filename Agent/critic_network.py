@@ -11,17 +11,23 @@ import random
 import paddle.nn.functional as F
 
 class CriticNetwork(nn.Layer):
-    def __init__(self, state_dim=[2,2,1],action_dim=1,env_switch=0,evaluate_array_dim=(101,101)):
+    def __init__(self, state_dim=[2,2,1],action_dim=1,env_switch=0,evaluate_array_dim=(101,101),**kargs):
         # state = {"location": location,
         #          "direction": direction,
         #          "omega": omega,
         #          "evaluate_array": evaluate_array}        
+        if 'LAYER_SIZE' in kargs:
+            self.LAYER_SIZE = kargs['LAYER_SIZE']
+        else:
+            self.LAYER_SIZE = [500,500,500]         
         super(CriticNetwork, self).__init__()
         self.env_switch = env_switch
         if self.env_switch == 0 :
             self.state_dim = state_dim
+            self.action_dim = action_dim
         else:
             self.state_dim = state_dim
+            self.action_dim = action_dim
             self.location_dim = state_dim[0] 
             self.direction_dim = state_dim[1]  
             self.omega_dim = state_dim[2] 
@@ -29,6 +35,7 @@ class CriticNetwork(nn.Layer):
         self.set_location()
         self.layers_linear = []
         print('CriticNetwork under construction')
+        self.create_q_network(self.state_dim,self.action_dim,self.LAYER_SIZE)
     
     def set_location(self,location=r'E:\EnglishMulu\agents'):
         self.location = location + r'\saved_critic_networks'
@@ -38,11 +45,12 @@ class CriticNetwork(nn.Layer):
         real_size = np.append(state_dim,LAYER_SIZE)
         real_size = np.append(real_size,np.array([1]))
 
-        for i in range(N_layers):
+        for i in range(len(real_size)-1):
             # get the omegas 
             if i == 0:
                 # before add the action. 
                 yiceng = nn.Linear(real_size[i]+action_dim, real_size[i+1])
+                # yiceng = nn.Linear(real_size[i], real_size[i+1])
                 # Wi = self.variable([real_size[i],real_size[i+1]],real_size[i])
             else: 
                 # which means the lay next to the action. w2 and w3
@@ -50,12 +58,39 @@ class CriticNetwork(nn.Layer):
                 yiceng = nn.Linear(real_size[i], real_size[i+1])
             self.layers_linear.append(yiceng)        
         self.relu = nn.ReLU()      
-    
+
+    def parameters(self):
+        # 为了图自动化，我这个里面各层网格写成了list，导致它这个原版用不了了。
+        """
+
+        Returns a list of all Parameters from current layer and its sub-layers.
+
+        Returns:
+            list of Tensor, a list of Parameters.
+
+        Examples:
+            .. code-block:: python
+
+                import paddle
+
+                linear = paddle.nn.Linear(1,1)
+                print(linear.parameters())  # print linear_0.w_0 and linear_0.b_0
+
+        """     
+        
+        paramter_list = [] 
+        for i in range(len(self.layers_linear)):
+           paramter_list.append(self.layers_linear[i].parameters()) 
+        return paramter_list
+
+
     def forward(self, x, a):
         for i in range(len(self.layers_linear)):
-             x = self.relu(self.layers_linear[i](x))
-             if i == 0 :
-                x = paddle.concat((x, a), axis=1)
+            if i == 0 :
+                x = paddle.concat((x, a), axis=2)
+            x = self.relu(self.layers_linear[i](x))
+            # if i == 0 :
+            #    x = paddle.concat((x, a), axis=1)
         return x
     
     def save_network(self,adam,checkpoint,**kargs):
