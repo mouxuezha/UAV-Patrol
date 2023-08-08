@@ -74,7 +74,7 @@ class DDPG:
         self.begin_train = False
         self.batch_size = 32
         self.learn_steps = 0
-        self.epochs = 250
+        self.epochs = 2500
 
         self.writer = LogWriter('logs')
 
@@ -138,6 +138,7 @@ class DDPG:
                     # 原版写了个zip(*experience)在这里，运行下来是不对的。手动改了个unpackge
 
                     batch_state = paddle.to_tensor(batch_state,dtype="float32").unsqueeze(0)
+                    # batch_state = paddle.to_tensor(batch_state,dtype="float32")
                     batch_next_state = paddle.to_tensor(batch_next_state,dtype="float32")
                     # batch_next_state = batch_next_state.squeeze(2)
                     batch_next_state = batch_next_state.unsqueeze(0)
@@ -170,24 +171,27 @@ class DDPG:
 
                     self.soft_update(self.target_actor_network, self.actor_network, self.TAU)  
                     self.soft_update(self.target_critic_network, self.critic_network, self.TAU)                  
-            if self.epsilon > 0:
-                self.epsilon -= 1 / self.explore
-            state = next_state
-        self.writer.add_scalar('episode reward', episode_reward, epoch)
-        if epoch % 50 == 0:
-            print('Epoch:{}, episode reward is {}'.format(epoch, episode_reward))
-            self.final_checkpoint["epoch"] = epoch
-            self.final_checkpoint["actor_loss"] = actor_loss
-            self.final_checkpoint["critic_loss"] = critic_loss        
-            
-         
-        if epoch % 200 == 0:
-            # paddle.save(self.actor_network.state_dict(), 'model/ddpg-actor' + str(epoch) + '.para')
-            # paddle.save(self.critic_network.state_dict(), 'model/ddpg-critic' + str(epoch) + '.para')
-            # self.actor_network.save_network()
-            # self.critic_network.save_network()
-            # print('model saved!') 
-            self.save_agent(index= epoch)   
+                if self.epsilon > 0:
+                    self.epsilon -= 1 / self.explore
+                state = next_state
+            self.writer.add_scalar('episode reward', episode_reward, epoch)
+            if epoch % 50 == 0:
+                print('Epoch:{}, episode reward is {}'.format(epoch, episode_reward))
+                if epoch>=100:
+                    self.final_checkpoint["epoch"] = epoch
+                    self.final_checkpoint["actor_loss"] = actor_loss
+                    self.final_checkpoint["critic_loss"] = critic_loss        
+                
+            if epoch % 200 == 0:
+                # paddle.save(self.actor_network.state_dict(), 'model/ddpg-actor' + str(epoch) + '.para')
+                # paddle.save(self.critic_network.state_dict(), 'model/ddpg-critic' + str(epoch) + '.para')
+                # self.actor_network.save_network()
+                # self.critic_network.save_network()
+                # print('model saved!') 
+                self.save_agent(index= epoch)
+        
+        print('XXH: train finished!')
+        return 0   
 
     def save_agent(self,index=0):
         self.location = self.set_location(index=index)

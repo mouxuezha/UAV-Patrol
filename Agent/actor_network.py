@@ -36,7 +36,6 @@ class ActorNetwork(nn.Layer):
                 # Wi = self.variable([real_size[i],real_size[i+1]],real_size[i]+action_dim)
                 yiceng = nn.Linear(real_size[i], real_size[i+1])
             self.layers_linear.append(yiceng)
-            asdasdas#找到问题了，每一层的_parameter没有自动地更新到self里面，所以后面是取不到的。这可以说就是动态图带来的问题了，没能显式地定义weight和bias。好好看好好学。 
         self.relu = nn.ReLU()
         self.tanh = nn.Tanh()
         self.noisy = Normal(0, 0.2)
@@ -60,9 +59,13 @@ class ActorNetwork(nn.Layer):
                 print(linear.parameters())  # print linear_0.w_0 and linear_0.b_0
 
         """     
+        
         paramter_list = [] 
         for i in range(len(self.layers_linear)):
-           paramter_list.append(self.layers_linear[i].parameters()) 
+        #    paramter_list.append(self.layers_linear[i].parameters()) 
+           paramter_list_single_layer = self.layers_linear[i].parameters()
+           for j in range(len(paramter_list_single_layer)):
+               paramter_list.append(paramter_list_single_layer[j])
         return paramter_list
 
     def forward(self,x):
@@ -75,7 +78,14 @@ class ActorNetwork(nn.Layer):
         return x 
     
     def select_action(self, epsilon, state):
-        state = paddle.to_tensor(state,dtype="float32").unsqueeze(0) # 这里肯定得后面再来重写的。要把卷积整进去。
+        if type(state)==paddle.Tensor:
+            state = state
+        elif type(state)==np.ndarray:
+            if len(state.shape) == 1:
+                state = state
+            elif len(state.shape) == 2:
+                state = state.reshape(state.shape[0],)
+            state = paddle.to_tensor(state,dtype="float32").unsqueeze(0) # 这里肯定得后面再来重写的。要把卷积整进去。
         with paddle.no_grad():
             # print(self.noisy.sample([1]).shape)
             # action = self.forward(state).squeeze(0) + self.is_train * epsilon * self.noisy.sample([1]).squeeze(0) # 这个是示例代码，但是应该不对

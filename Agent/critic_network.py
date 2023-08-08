@@ -80,7 +80,10 @@ class CriticNetwork(nn.Layer):
         
         paramter_list = [] 
         for i in range(len(self.layers_linear)):
-           paramter_list.append(self.layers_linear[i].parameters()) 
+        #    paramter_list.append(self.layers_linear[i].parameters()) 
+           paramter_list_single_layer = self.layers_linear[i].parameters()
+           for j in range(len(paramter_list_single_layer)):
+               paramter_list.append(paramter_list_single_layer[j])
         return paramter_list
 
 
