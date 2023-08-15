@@ -6,7 +6,7 @@ import time
 import numpy as np
 import copy
 
-WEIZHI =r'E:/EnglishMulu/UAV-Patrol' 
+WEIZHI =r'D:/storage/实验室电脑E盘/EnglishMulu/UAV-Patrol' 
 import sys 
 sys.path.append(WEIZHI+r'/Support')
 from huatu_support import huatu_support
@@ -17,7 +17,8 @@ sys.path.append(WEIZHI+r'/UAV')
 from UAV import UAV
 
 # sys.path.append(WEIZHI+r'/lib_cpp')
-sys.path.append(r'E:/EnglishMulu/shishi_py/x64/Debug')
+# sys.path.append(r'E:/EnglishMulu/shishi_py/x64/Debug')
+sys.path.append(r'D:\storage\实验室电脑E盘\EnglishMulu\shishi_py\x64\Debug')
 
 import shishi_py
 
