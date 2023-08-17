@@ -1,5 +1,5 @@
 # this is a zuobiaoxi for UAV-Patrol
-WEIZHI =r'E:/EnglishMulu/UAV-Patrol'
+WEIZHI =r'E:\EnglishMulu\UAV-Patrol' 
 import numpy as np
 import sys 
 sys.path.append(WEIZHI+r'/Support')

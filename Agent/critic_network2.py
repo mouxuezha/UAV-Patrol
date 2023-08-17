@@ -12,7 +12,7 @@ import paddle.nn.functional as F
 from paddle.nn import Conv2D, MaxPool2D
 
 class CriticNetwork(nn.Layer):
-    def __init__(self, state_dim=[2,2,1],action_dim=1,env_switch=0,evaluate_array_dim=(101,101),**kargs):
+    def __init__(self, state_dim=[2,2,1,101],action_dim=1,env_switch=0,**kargs):
         # state = {"location": location,
         #          "direction": direction,
         #          "omega": omega,
@@ -23,17 +23,18 @@ class CriticNetwork(nn.Layer):
             self.LAYER_SIZE = [500,500,500]         
         super(CriticNetwork, self).__init__()
         self.env_switch = env_switch
+        
         if self.env_switch == 0 :
             self.state_dim = state_dim
             self.action_dim = action_dim
-        else:
+        elif self.env_switch == 1:
             self.state_dim = state_dim
             self.action_dim = action_dim
             self.location_dim = state_dim[0] 
             self.direction_dim = state_dim[1]  
             self.omega_dim = state_dim[2] 
             self.CNN_out_dim = 5
-            self.evaluate_array_dim = evaluate_array_dim
+            self.evaluate_array_dim = (state_dim[-1],state_dim[-1])
         self.set_location()
         self.layers_linear = []
         self.layers_CNN = [] 
@@ -46,8 +47,12 @@ class CriticNetwork(nn.Layer):
 
     def create_q_network(self,state_dim,action_dim,LAYER_SIZE):
         N_layers = len(LAYER_SIZE)
-        real_size = np.append(state_dim,LAYER_SIZE)
-        real_size = np.append(real_size,np.array([1]))
+        if len(self.state_dim)>0:  # 由于state是dic所以这里需要处理一下
+            state_dim_liner = state_dim[0] + state_dim[1] + state_dim[2] + self.CNN_out_dim
+        else:
+            state_dim_liner = state_dim
+        real_size = np.append(state_dim_liner,LAYER_SIZE)
+        real_size = np.append(real_size,np.array([action_dim]))
 
 
         for i in range(len(real_size)-1):
@@ -62,7 +67,9 @@ class CriticNetwork(nn.Layer):
                 # Wi = self.variable([real_size[i],real_size[i+1]],real_size[i]+action_dim)
                 yiceng = nn.Linear(real_size[i], real_size[i+1])
             self.layers_linear.append(yiceng)        
-        self.relu = nn.ReLU()      
+        self.relu = nn.ReLU()    
+
+        self.creat_CNN(asdasdsadas)  
 
     def parameters(self):
         # 为了图自动化，我这个里面各层网格写成了list，导致它这个原版用不了了。
@@ -120,6 +127,7 @@ class CriticNetwork(nn.Layer):
         self.layers_CNN.append(conv2)
         self.layers_CNN.append(max_pool2)
         self.layers_CNN.append(fc)
+
     
     def Conv2D_parameter_change(self,H_in,W_in, paddings=2,dilations=1,kernel_size=5,strides=1):
         # CNN和max_pool都是这个公式，不重新写了。

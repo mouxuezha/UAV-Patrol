@@ -5,10 +5,10 @@ import numpy as np
 import os
 import pickle
 import sys
-WEIZHI =r'E:/EnglishMulu/UAV-Patrol' 
+WEIZHI =r'E:\EnglishMulu\UAV-Patrol' 
 sys.path.append(WEIZHI+r'/Support')
-from critic_network import CriticNetwork
-from actor_network import ActorNetwork
+from critic_network2 import CriticNetwork
+from actor_network2 import ActorNetwork
 from replay_buffer import ReplayBuffer
 import paddle
 from visualdl import LogWriter
@@ -58,6 +58,8 @@ class DDPG:
         
         if self.__env_switch()==0:
             self.__init_Pendulum()
+        elif self.__env_switch() ==1:
+            self.__init_UAV()
         
 
         self.actor_network = ActorNetwork(self.state_dim,self.action_dim,self.__env_switch())
@@ -79,16 +81,26 @@ class DDPG:
         self.writer = LogWriter('logs')
 
     def __env_switch(self):
-        # 'Pendulum-v1' is case 0 
-        if self.env.env.env.env.spec.id == 'Pendulum-v1':
+        # 'Pendulum-v1' is case 0, UAV is case 1
+        try:
+            name = self.env.env.env.env.spec.id
+        except:
+            name = self.env.env.env.spec.id
+        if name == 'Pendulum-v1':
             return 0 
-            self.__init_Pendulum()   
+            self.__init_Pendulum()
+        elif name == 'UAV_Patrol_env-v0':
+            return 1 
         else:
             raise Exception('DDPG: Invalid env case, G!')     
 
     def __init_Pendulum(self):
         self.state_dim = 3 
         self.action_dim = 1 
+    
+    def __init_UAV(self):
+        self.state_dim = [2,2,1,101]
+        self.action_dim = 1
 
     def set_location(self,location=r'E:\EnglishMulu\agents',index=0):
         while os.path.exists(location + r'\agent'+str(index)):

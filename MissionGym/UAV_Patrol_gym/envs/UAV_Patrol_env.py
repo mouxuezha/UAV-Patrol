@@ -5,7 +5,7 @@ from gym.spaces import Dict, Box, Discrete
 import sys
 import os
 
-WEIZHI =r'E:/EnglishMulu/UAV-Patrol'
+WEIZHI =r'E:\EnglishMulu\UAV-Patrol' 
 sys.path.append(WEIZHI+r'/Support')
 sys.path.append(WEIZHI+r'/UAV')
 sys.path.append(WEIZHI+r'/BattleField')

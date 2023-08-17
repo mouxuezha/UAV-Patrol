@@ -5,7 +5,7 @@ import numpy as np
 import os
 import pickle
 import sys
-WEIZHI =r'E:/EnglishMulu/UAV-Patrol' 
+WEIZHI =r'E:\EnglishMulu\UAV-Patrol' 
 sys.path.append(WEIZHI+r'/Support')
 from critic_network import CriticNetwork
 from actor_network import ActorNetwork

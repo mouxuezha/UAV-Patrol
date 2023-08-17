@@ -1,22 +1,26 @@
 # 不要飘，还是先把之前那个兼容了，不要搞大跃进空中楼阁
 import gym
 import sys
-WEIZHI =r'E:/EnglishMulu/UAV-Patrol' 
+WEIZHI =r'E:\EnglishMulu\UAV-Patrol' 
 sys.path.append(WEIZHI+r'/Agent')
 sys.path.append(WEIZHI+r'/Support')
 sys.path.append(WEIZHI+r'/UAV')
 sys.path.append(WEIZHI+r'/BattleField')
-sys.path.append(WEIZHI+r'/MissionGym/UAV_Patrol/envs')
+sys.path.append(WEIZHI+r'/MissionGym/UAV_Patrol_gym/envs')
 
 # from DDPG1 import DDPG # 这个是原版的
 from DDPG2 import DDPG # 这个是加了CNN的
 from UAV import UAV
 from BattleField import BattleField
+
+import UAV_Patrol_gym
+
 if __name__ == "__main__":
     # 定义环境
     # env = gym.make('Pendulum-v1')
     env = gym.make('UAV_Patrol_env-v0')
-    print(env.env.env.env.spec.id)
+    # print(env.env.env.env.spec.id)
+    print(env.env.env.spec.id)
 
     # 定义智能体了。
     agent0 = DDPG(env)

@@ -6,7 +6,7 @@ import numpy as np
 import paddle.nn.functional as F
 
 class ActorNetwork(nn.Layer):
-    def __init__(self,state_dim=[4,101], action_dim =1 , env_switch =0,**kargs):
+    def __init__(self,state_dim=[2,2,1,101],action_dim=1 , env_switch =0,**kargs):
         if 'LAYER_SIZE' in kargs:
             self.LAYER_SIZE = kargs['LAYER_SIZE']
         else:
@@ -15,6 +15,18 @@ class ActorNetwork(nn.Layer):
         self.action_dim = action_dim 
         self.env_switch = env_switch
         super(ActorNetwork, self).__init__()
+        self.env_switch = env_switch
+        if self.env_switch == 0 :
+            self.state_dim = state_dim
+            self.action_dim = action_dim
+        elif self.env_switch == 1:
+            self.state_dim = state_dim
+            self.action_dim = action_dim
+            self.location_dim = state_dim[0] 
+            self.direction_dim = state_dim[1]  
+            self.omega_dim = state_dim[2] 
+            self.CNN_out_dim = 5
+            self.evaluate_array_dim = (state_dim[-1],state_dim[-1])        
         self.layers_linear = [] 
         print('ActorNetwork under construction')
         self.create_network(self.state_dim,self.action_dim,self.LAYER_SIZE,is_train=True)
@@ -22,7 +34,7 @@ class ActorNetwork(nn.Layer):
     def create_network(self,state_dim,action_dim,LAYER_SIZE,is_train=True):
         N_layers = len(LAYER_SIZE)
         real_size = np.append(state_dim,LAYER_SIZE)
-        real_size = np.append(real_size,np.array([1]))
+        real_size = np.append(real_size,np.array([action_dim]))
 
         for i in range(len(real_size)-1):
             # get the omegas 

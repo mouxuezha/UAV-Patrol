@@ -6,7 +6,7 @@ import time
 import numpy as np
 import copy
 
-WEIZHI =r'D:/storage/实验室电脑E盘/EnglishMulu/UAV-Patrol' 
+WEIZHI =r'E:\EnglishMulu\UAV-Patrol' 
 import sys 
 sys.path.append(WEIZHI+r'/Support')
 from huatu_support import huatu_support

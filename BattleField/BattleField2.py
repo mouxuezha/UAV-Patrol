@@ -2,7 +2,7 @@
 
 import numpy as np
 import copy
-WEIZHI =r'E:/EnglishMulu/UAV-Patrol' 
+WEIZHI =r'E:\EnglishMulu\UAV-Patrol' 
 import sys 
 sys.path.append(WEIZHI+r'/Support')
 from huatu_support import huatu_support
@@ -549,7 +549,7 @@ class BattleField_node(object):
         return huatu
     
 if __name__ == '__main__':
-    location = r"E:\EnglishMulu\UAV-Patrol\BattleField" 
+    location = r"E:\EnglishMulu\UAV-Patrol" 
     shishi1 = UAV(location=np.array([100,100]), sudu_max=114514, omega_max = 1,r=100)
     shishi1.set_chuzhi(sudu_0=np.array([500,0]),a_0=0,omega_0=0,dt = 0.1)
     shishi_BattleField = BattleField(L_x=1000,L_y=1000)
