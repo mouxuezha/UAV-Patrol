@@ -12,7 +12,7 @@ import paddle.nn.functional as F
 from paddle.nn import Conv2D, MaxPool2D
 
 class CriticNetwork(nn.Layer):
-    def __init__(self, state_dim=[2,2,1,101],action_dim=1,env_switch=0,**kargs):
+    def __init__(self, state_dim=[2,2,1,101],action_dim=1,env_switch=0,state_name=[],**kargs):
         # state = {"location": location,
         #          "direction": direction,
         #          "omega": omega,
@@ -38,7 +38,7 @@ class CriticNetwork(nn.Layer):
         self.set_location()
         self.layers_linear = []
         self.layers_CNN = [] 
-        
+        self.state_name = state_name
         print('CriticNetwork under construction')
         self.create_q_network(self.state_dim,self.action_dim,self.LAYER_SIZE)
     
@@ -104,52 +104,92 @@ class CriticNetwork(nn.Layer):
                paramter_list.append(paramter_list_single_layer[j])            
         return paramter_list
 
-    def creat_CNN(self, H=100, W=100):
+    def creat_CNN(self, H=101, W=101):
 
         in_channels = 1
-        # 定义卷积层，输出特征通道out_channels设置为20，卷积核的大小kernel_size为5，卷积步长stride=1，padding=2
-        conv1 = Conv2D(in_channels=in_channels, out_channels=20, kernel_size=5, stride=1, padding=2)
-        H,W = self.Conv2D_parameter_change(H,W, kernel_size=5, stride=1, padding=2)
-        # 定义池化层，池化核的大小kernel_size为2，池化步长为2
-        max_pool1 = MaxPool2D(kernel_size=2, stride=2)
-        H,W = self.Conv2D_parameter_change(H, W, padding=0, kernel_size=2, stride=2)
-        # 定义卷积层，输出特征通道out_channels设置为20，卷积核的大小kernel_size为5，卷积步长stride=1，padding=2
-        conv2 = Conv2D(in_channels=20, out_channels=20, kernel_size=5, stride=1, padding=2)
-        H,W = self.Conv2D_parameter_change(H, W, kernel_size=5, stride=1, padding=2)
-        # 定义池化层，池化核的大小kernel_size为2，池化步长为2
-        max_pool2 = MaxPool2D(kernel_size=2, stride=2)
-        H,W = self.Conv2D_parameter_change(H, W, padding=0, kernel_size=2, stride=2)
+        out_channels = 5
+        # 定义卷积层，
+        conv1 = Conv2D(in_channels=in_channels, out_channels=out_channels, kernel_size=5, stride=1, padding=2)
+        H,W = self.Conv2D_parameter_change(H,W, paddings=2,dilations=1,kernel_size=5,strides=1)
+        # 定义池化层，
+        max_pool1 = MaxPool2D(kernel_size=4, stride=4)
+        H,W = self.MaxPool2D_parameter_change(H, W, paddings=0, kernel_size=4, strides=4)
+        # 定义卷积层，
+        conv2 = Conv2D(in_channels=out_channels, out_channels=out_channels, kernel_size=5, stride=1, padding=2)
+        H,W = self.Conv2D_parameter_change(H, W, paddings=2,dilations=1,kernel_size=5,strides=1)
+        # 定义池化层，
+        max_pool2 = MaxPool2D(kernel_size=4, stride=4)
+        H,W = self.MaxPool2D_parameter_change(H, W, paddings=0, kernel_size=4, strides=4)
         # 定义一层全连接层，输出维度是1【我这个不能是1,但是5也是随手给的】
-        fc = nn.Linear(in_features=H*W, out_features=self.CNN_out_dim)
+        fc = nn.Linear(in_features=H*W*out_channels, out_features=self.CNN_out_dim)
         
         self.layers_CNN.append(conv1)
         self.layers_CNN.append(max_pool1)
         self.layers_CNN.append(conv2)
         self.layers_CNN.append(max_pool2)
         self.layers_CNN.append(fc)
-
     
     def Conv2D_parameter_change(self,H_in,W_in, paddings=2,dilations=1,kernel_size=5,strides=1):
         # CNN和max_pool都是这个公式，不重新写了。
         H_out = (H_in+2*paddings-(dilations*(kernel_size-1)+1))/strides+1
         W_out = (W_in+2*paddings-(dilations*(kernel_size-1)+1))/strides+1
-        return H_out, W_out   
+        H_out = int(H_out)
+        W_out = int(W_out)
+        return H_out, W_out
+    def MaxPool2D_parameter_change(self,H_in,W_in, paddings=2,dilations=1,kernel_size=5,strides=1):
+        # 不行还是得重新写
+        m = 0 # max(kernel_size-1,0)
+        n = 0 # max(kernel_size-1,0)
+        H_out = (H_in - m)/strides
+        W_out = (W_in - n)/strides
+        H_out = int(H_out)
+        W_out = int(W_out)
+        return H_out, W_out 
 
     def forward(self, x, a):
-        x_CNN = x["CNN"]   #2023-8-10 22:51:06写到这里，还没有最终定下来这个怎么说。
+        x_CNN = x["CNN"]   
         
         for i in range(len(self.layers_CNN)):
-            x_CNN = self.relu(self.layers_linear[i](x_CNN))
+            
+            if i == len(self.layers_CNN)-1:
+                x_CNN = paddle.reshape(x_CNN, [x_CNN.shape[0], -1])
+                x_CNN = self.layers_CNN[i](x_CNN)
+            else:
+                x_CNN = self.relu(self.layers_CNN[i](x_CNN))
         
-        x_state = x["state"]
+        x_CNN = x_CNN.unsqueeze(1)
+        a = a.unsqueeze(1)
+
+        x_other = x["other"]
         for i in range(len(self.layers_linear)):
             if i == 0 :
-                x = paddle.concat((x_state, a, x_CNN), axis=2)
+                x = paddle.concat((x_other, x_CNN), axis=2)
+                x = paddle.concat((x, a), axis=2)
             x = self.relu(self.layers_linear[i](x))
             # if i == 0 :
             #    x = paddle.concat((x, a), axis=1)
         return x
-    
+   
+    def state_to_tensor(self,state):
+        # 把state转化成能够输入到神经网络里面去的形式。
+        state_tensor = {} 
+        x = {} 
+        # x_CNN = np.append(state['location'],state['direction'])
+        # X_CNN = np.append(x_CNN,state['omega'])
+        # state_tensor['location']= paddle.to_tensor(state['location'],dtype="float32").unsqueeze(0)
+        # state_tensor['direction'] = paddle.to_tensor(state['direction'],dtype="float32").unsqueeze(0)
+        # state_tensor['omega'] = paddle.to_tensor(state['omega'],dtype="float32").unsqueeze(0)
+        # state_tensor['evaluate_array'] = paddle.to_tensor(state['evaluate_array'],dtype="float32").unsqueeze(0)
+        for name in self.state_name:
+            state_tensor[name] = paddle.to_tensor(state[name],dtype="float32").unsqueeze(0).unsqueeze(0)
+        # x_CNN = state['evaluate_array']
+
+        x_CNN = state_tensor['evaluate_array']
+        x_other = paddle.concat((state_tensor['location'],state_tensor['direction'],state_tensor['omega']),axis=2)
+        x['CNN'] = x_CNN 
+        x['other'] = x_other
+        return x
+   
     def save_network(self,adam,checkpoint,**kargs):
         if 'location' in kargs:
             location = kargs['location'] + r'\saved_critic_networks'

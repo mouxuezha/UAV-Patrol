@@ -20,15 +20,21 @@ class critic_CNN(paddle.nn.Layer):
 
     def creat_CNN(self,env_parameters=0):
 
+
+        
         in_channels = 1
         # 定义卷积层，输出特征通道out_channels设置为20，卷积核的大小kernel_size为5，卷积步长stride=1，padding=2
         self.conv1 = Conv2D(in_channels=in_channels, out_channels=20, kernel_size=5, stride=1, padding=2)
+        H,W = self.Conv2D_parameter_change(28,28, paddings=2,dilations=1,kernel_size=5,strides=1)
         # 定义池化层，池化核的大小kernel_size为2，池化步长为2
         self.max_pool1 = MaxPool2D(kernel_size=2, stride=2)
+        H,W = self.MaxPool2D_parameter_change(H,W, kernel_size=2,strides=2)
         # 定义卷积层，输出特征通道out_channels设置为20，卷积核的大小kernel_size为5，卷积步长stride=1，padding=2
         self.conv2 = Conv2D(in_channels=20, out_channels=20, kernel_size=5, stride=1, padding=2)
+        H,W = self.Conv2D_parameter_change(H,W, paddings=2,dilations=1,kernel_size=5,strides=1)
         # 定义池化层，池化核的大小kernel_size为2，池化步长为2
         self.max_pool2 = MaxPool2D(kernel_size=2, stride=2)
+        H,W = self.MaxPool2D_parameter_change(H,W, kernel_size=2,strides=2)
         # 定义一层全连接层，输出维度是1
         self.fc = Linear(in_features=980, out_features=1)       
     
@@ -90,7 +96,26 @@ class critic_CNN(paddle.nn.Layer):
             image_2D = image_1D.reshape(in_channels, IMG_ROWS, IMG_COLS)
             image_2D_list.append(image_2D)
         return image_2D_list
-
+    
+    def Conv2D_parameter_change(self,H_in,W_in, paddings=2,dilations=1,kernel_size=5,strides=1):
+        # CNN和max_pool都是这个公式，不重新写了。
+        H_out = (H_in+2*paddings-(dilations*(kernel_size-1)+1))/strides+1
+        W_out = (W_in+2*paddings-(dilations*(kernel_size-1)+1))/strides+1
+        H_out = int(H_out)
+        W_out = int(W_out)
+        return H_out, W_out
+    
+    def MaxPool2D_parameter_change(self,H_in,W_in, paddings=2,dilations=1,kernel_size=5,strides=1):
+        # 不行还是得重新写,这个现在还不对草。
+        # m = 0 # max(kernel_size-1,0)
+        # n = 0 # max(kernel_size-1,0)
+        # H_out = (H_in - m)/strides
+        # W_out = (W_in - n)/strides
+        H_out = (H_in+2*paddings-(dilations*(kernel_size-1)-1))/strides+1
+        W_out = (W_in+2*paddings-(dilations*(kernel_size-1)-1))/strides+1
+        H_out = int(H_out)
+        W_out = int(W_out) 
+        return H_out, W_out
 
 def load_data(mode='train'):
     # datafile = './work/mnist.json.gz'

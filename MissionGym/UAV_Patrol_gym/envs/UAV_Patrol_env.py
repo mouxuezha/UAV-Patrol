@@ -37,6 +37,7 @@ class UAVPatrolEnv(gym.Env):
         "direction": Box(0 , 1, shape=(2,), dtype=np.float64), 
         "omega": Box(-1*self.BattleField.UAV_feiji.omega_v_max , self.BattleField.UAV_feiji.omega_v_max, shape=(1,), dtype=np.float64),
         "evaluate_array": Box(0 , self.BattleField.L_x, shape=(self.hangshu,self.hangshu), dtype=int) })
+        self.state_name = ["location", "direction", "omega","evaluate_array"]
 
         d_omega_max = 0.1 * self.BattleField.UAV_feiji.omega_v_max
         self.action_space = spaces.Box(low=-1.0*d_omega_max, high= d_omega_max, shape=(1, ), dtype=np.float64)

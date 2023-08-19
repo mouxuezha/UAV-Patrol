@@ -50,6 +50,8 @@ class DDPG:
         # self.BATCH_SIZE = 32 # 64 
         self.GAMMA = 0.99
         self.env = env
+        # self.state_name = self.env.state_name
+        self.state_name = ["location", "direction", "omega","evaluate_array"]
         self.step_max = 200 
         self.epsilon = 1 # this is to control the noise.
         self.explore = 50000
@@ -62,11 +64,11 @@ class DDPG:
             self.__init_UAV()
         
 
-        self.actor_network = ActorNetwork(self.state_dim,self.action_dim,self.__env_switch())
-        self.critic_network = CriticNetwork(self.state_dim,self.action_dim,self.__env_switch())
+        self.actor_network = ActorNetwork(self.state_dim,self.action_dim,self.__env_switch(),state_name=self.state_name)
+        self.critic_network = CriticNetwork(self.state_dim,self.action_dim,self.__env_switch(),state_name=self.state_name)
 
-        self.target_actor_network = ActorNetwork(self.state_dim,self.action_dim,self.__env_switch())
-        self.target_critic_network = CriticNetwork(self.state_dim,self.action_dim,self.__env_switch())
+        self.target_actor_network = ActorNetwork(self.state_dim,self.action_dim,self.__env_switch(),state_name=self.state_name)
+        self.target_critic_network = CriticNetwork(self.state_dim,self.action_dim,self.__env_switch(),state_name=self.state_name)
 
         # 定义优化器
         self.critic_optim = paddle.optimizer.Adam(parameters=self.critic_network.parameters(), learning_rate=self.LEARNING_RATE_a)
@@ -99,7 +101,8 @@ class DDPG:
         self.action_dim = 1 
     
     def __init_UAV(self):
-        self.state_dim = [2,2,1,101]
+        self.state_dim = [2,2,1,101] # 101不好卷积貌似
+        # self.state_dim = [2,2,1,100]
         self.action_dim = 1
 
     def set_location(self,location=r'E:\EnglishMulu\agents',index=0):
@@ -121,25 +124,53 @@ class DDPG:
             batch_state.append(batch[i][0])
             batch_action.append(batch[i][1])
             batch_reward.append(batch[i][2])
-            batch_next_state.append(batch[i][3].reshape((3,)))
+            if type(batch[i][3]) == dict:
+                batch_next_state.append(batch[i][3])
+            else:
+                batch_next_state.append(batch[i][3].reshape((3,)))
         
         return batch_state, batch_next_state, batch_action, batch_reward
 
+    def state_to_tensor_batch(self,states):
+        # 把state转化成能够输入到神经网络里面去的形式。
+        state_tensor = {} 
+        x_batch = {} 
+        for i in range(len(states)):
+            state = states[i]
+            for name in self.state_name:
+                if type(state[name])==np.ndarray:
+                    if len(state[name].shape) == 2 and name!='evaluate_array':
+                        state[name] = state[name].reshape(state[name].shape[1],)
+                    
+                state_tensor[name] = paddle.to_tensor(state[name],dtype="float32").unsqueeze(0).unsqueeze(0)
 
+            x_CNN_single = state_tensor['evaluate_array']
+            x_other_single = paddle.concat((state_tensor['location'],state_tensor['direction'],state_tensor['omega']),axis=2)
+
+            if i == 0 :
+                x_CNN = x_CNN_single
+                x_other = x_other_single
+            else:
+                x_CNN = paddle.concat((x_CNN,x_CNN_single),axis=0)
+                x_other = paddle.concat((x_other,x_other_single),axis=0)
+        x_batch['CNN'] = x_CNN 
+        x_batch['other'] = x_other
+        return x_batch
+    
     def trainning(self):
         for epoch in range(0, self.epochs):
             state = self.env.reset()
-            state = state[0] # Pendulum-v1直接给出的话后面会有一个奇怪的{}
+            # state = state[0] # Pendulum-v1直接给出的话后面会有一个奇怪的{}
             episode_reward = 0
             for time_step in range(self.step_max):
                 action = self.actor_network.select_action(self.epsilon, state)
-                next_state, reward, done, _ ,_= self.env.step([action])
+                # next_state, reward, done, _ ,_= self.env.step([action])
+                next_state, reward, done, _= self.env.step(action)
                 episode_reward += reward
-                reward = (reward + 8.1) / 8.1 #这尼玛？这么暴力的操作，就直接写在代码里
                 # self.memory_replay.add((state, next_state, action, reward)) # 这个又是，给的代码调不通。那只能自己想着点 改改了。而且顺序也不对
                 self.memory_replay.add(state, action, reward,next_state, done) 
 
-                if self.memory_replay.size() > 1280:
+                if self.memory_replay.size() > 1280: #1280
                     self.learn_steps += 1
                     if not self.begin_train:
                         print('train begin!')
@@ -149,20 +180,19 @@ class DDPG:
                     batch_state, batch_next_state, batch_action, batch_reward = self.unpackage(experiences)
                     # 原版写了个zip(*experience)在这里，运行下来是不对的。手动改了个unpackge
 
-                    batch_state = paddle.to_tensor(batch_state,dtype="float32").unsqueeze(0)
-                    # batch_state = paddle.to_tensor(batch_state,dtype="float32")
-                    batch_next_state = paddle.to_tensor(batch_next_state,dtype="float32")
-                    # batch_next_state = batch_next_state.squeeze(2)
-                    batch_next_state = batch_next_state.unsqueeze(0)
-                    batch_action = paddle.to_tensor(batch_action,dtype="float32").unsqueeze(0)
-                    batch_reward = paddle.to_tensor(batch_reward,dtype="float32").unsqueeze(0)
+                    # 在的state是个抽象数据类型了，得重新整整。
+                    batch_action = paddle.to_tensor(batch_action,dtype="float32")
+                    batch_reward = paddle.to_tensor(batch_reward,dtype="float32").unsqueeze(1)
+                    x_batch_state = self.state_to_tensor_batch(batch_state)
+                    x_batch_next_state = self.state_to_tensor_batch(batch_next_state)
+                  
                     # 均方误差 y - Q(s, a) ， y是目标网络所看到的预期收益， 而 Q(s, a)是Critic网络预测的操作值。
                     # y是一个移动的目标，评论者模型试图实现的目标；这个目标通过缓慢的更新目标模型来保持稳定。 
                     with paddle.no_grad():
-                        Q_next = self.target_critic_network(batch_next_state, self.target_actor_network(batch_next_state))
+                        Q_next = self.target_critic_network(x_batch_next_state, self.target_actor_network(x_batch_next_state))
                         Q_target = batch_reward + self.GAMMA * Q_next
 
-                    critic_loss = F.mse_loss(self.critic_network(batch_state, batch_action), Q_target)
+                    critic_loss = F.mse_loss(self.critic_network(x_batch_state, batch_action), Q_target)
 
                     self.critic_optim.clear_grad() # 这一段和静态图里面的说法有点不一样了
                     critic_loss.backward()
@@ -172,7 +202,7 @@ class DDPG:
                     # 使用Critic网络给定值的平均值来评价Actor网络采取的行动。 我们力求使这一数值最大化。 
                     # 因此，我们更新了Actor网络，对于一个给定状态，它产生的动作尽量让Critic网络给出高的评分。 
                     self.critic_network.eval()
-                    actor_loss = - self.critic_network(batch_state, self.actor_network(batch_state))
+                    actor_loss = - self.critic_network(x_batch_state, self.actor_network(x_batch_state))
                     # print(actor_loss.shape)
                     actor_loss = actor_loss.mean()
                     self.actor_optim.clear_grad()

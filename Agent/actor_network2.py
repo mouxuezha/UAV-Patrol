@@ -7,7 +7,7 @@ import paddle.nn.functional as F
 from paddle.nn import Conv2D, MaxPool2D
 
 class ActorNetwork(nn.Layer):
-    def __init__(self,state_dim=[2,2,1,101],action_dim=1 , env_switch =0,**kargs):
+    def __init__(self,state_dim=[2,2,1,101],action_dim=1 , env_switch =0,state_name=[],**kargs):
         if 'LAYER_SIZE' in kargs:
             self.LAYER_SIZE = kargs['LAYER_SIZE']
         else:
@@ -30,10 +30,11 @@ class ActorNetwork(nn.Layer):
             self.evaluate_array_dim = (state_dim[-1],state_dim[-1])        
         self.layers_linear = []
         self.layers_CNN = [] 
+        self.state_name = state_name
         print('ActorNetwork under construction')
         self.create_network(self.state_dim,self.action_dim,self.LAYER_SIZE,is_train=True)
         self.creat_CNN(H=self.evaluate_array_dim[0],W=self.evaluate_array_dim[1])  
-        
+
 
     def create_network(self,state_dim,action_dim,LAYER_SIZE,is_train=True):
         N_layers = len(LAYER_SIZE)
@@ -94,25 +95,25 @@ class ActorNetwork(nn.Layer):
             for j in range(len(paramter_list_single_layer)):
                paramter_list.append(paramter_list_single_layer[j])            
         return paramter_list
-        return paramter_list  
 
-    def creat_CNN(self, H=100, W=100):
+    def creat_CNN(self, H=101, W=101):
 
         in_channels = 1
-        # 定义卷积层，输出特征通道out_channels设置为20，卷积核的大小kernel_size为5，卷积步长stride=1，padding=2
-        conv1 = Conv2D(in_channels=in_channels, out_channels=20, kernel_size=5, stride=1, padding=2)
-        H,W = self.Conv2D_parameter_change(H,W, kernel_size=5, stride=1, padding=2)
-        # 定义池化层，池化核的大小kernel_size为2，池化步长为2
-        max_pool1 = MaxPool2D(kernel_size=2, stride=2)
-        H,W = self.Conv2D_parameter_change(H, W, padding=0, kernel_size=2, stride=2)
-        # 定义卷积层，输出特征通道out_channels设置为20，卷积核的大小kernel_size为5，卷积步长stride=1，padding=2
-        conv2 = Conv2D(in_channels=20, out_channels=20, kernel_size=5, stride=1, padding=2)
-        H,W = self.Conv2D_parameter_change(H, W, kernel_size=5, stride=1, padding=2)
-        # 定义池化层，池化核的大小kernel_size为2，池化步长为2
-        max_pool2 = MaxPool2D(kernel_size=2, stride=2)
-        H,W = self.Conv2D_parameter_change(H, W, padding=0, kernel_size=2, stride=2)
+        out_channels = 5
+        # 定义卷积层，
+        conv1 = Conv2D(in_channels=in_channels, out_channels=out_channels, kernel_size=5, stride=1, padding=2)
+        H,W = self.Conv2D_parameter_change(H,W, paddings=2,dilations=1,kernel_size=5,strides=1)
+        # 定义池化层，
+        max_pool1 = MaxPool2D(kernel_size=4, stride=4)
+        H,W = self.MaxPool2D_parameter_change(H, W, paddings=0, kernel_size=4, strides=4)
+        # 定义卷积层，
+        conv2 = Conv2D(in_channels=out_channels, out_channels=out_channels, kernel_size=5, stride=1, padding=2)
+        H,W = self.Conv2D_parameter_change(H, W, paddings=2,dilations=1,kernel_size=5,strides=1)
+        # 定义池化层，
+        max_pool2 = MaxPool2D(kernel_size=4, stride=4)
+        H,W = self.MaxPool2D_parameter_change(H, W, paddings=0, kernel_size=4, strides=4)
         # 定义一层全连接层，输出维度是1【我这个不能是1,但是5也是随手给的】
-        fc = nn.Linear(in_features=H*W, out_features=self.CNN_out_dim)
+        fc = nn.Linear(in_features=H*W*out_channels, out_features=self.CNN_out_dim)
         
         self.layers_CNN.append(conv1)
         self.layers_CNN.append(max_pool1)
@@ -124,16 +125,41 @@ class ActorNetwork(nn.Layer):
         # CNN和max_pool都是这个公式，不重新写了。
         H_out = (H_in+2*paddings-(dilations*(kernel_size-1)+1))/strides+1
         W_out = (W_in+2*paddings-(dilations*(kernel_size-1)+1))/strides+1
+        H_out = int(H_out)
+        W_out = int(W_out)
         return H_out, W_out
-
+    def MaxPool2D_parameter_change(self,H_in,W_in, paddings=2,dilations=1,kernel_size=5,strides=1):
+        # 不行还是得重新写
+        m = 0 # max(kernel_size-1,0)
+        n = 0 # max(kernel_size-1,0)
+        H_out = (H_in - m)/strides
+        W_out = (W_in - n)/strides
+        H_out = int(H_out)
+        W_out = int(W_out)
+        return H_out, W_out
+    
     def forward(self,x):
-        for i in range(len(self.layers_linear)):
-            if i == len(self.layers_linear)-1:
-                x = self.tanh(self.layers_linear[i](x))
-            else:
-                x = self.relu(self.layers_linear[i](x))
+        x_CNN = x["CNN"]   
+        
+        for i in range(len(self.layers_CNN)):
             
-        return x 
+            if i == len(self.layers_CNN)-1:
+                x_CNN = paddle.reshape(x_CNN, [x_CNN.shape[0], -1])
+                x_CNN = self.layers_CNN[i](x_CNN)
+            else:
+                x_CNN = self.relu(self.layers_CNN[i](x_CNN))
+        
+        # x_CNN = x_CNN.unsqueeze(0)
+
+        x_other = x["other"]
+        x_other = x_other.squeeze(1)
+        for i in range(len(self.layers_linear)):
+            if i == 0 :
+                x = paddle.concat((x_other, x_CNN), axis=1)
+            x = self.relu(self.layers_linear[i](x))
+            # if i == 0 :
+            #    x = paddle.concat((x, a), axis=1)
+        return x
     
     def select_action(self, epsilon, state):
         if type(state)==paddle.Tensor:
@@ -144,12 +170,39 @@ class ActorNetwork(nn.Layer):
             elif len(state.shape) == 2:
                 state = state.reshape(state.shape[0],)
             state = paddle.to_tensor(state,dtype="float32").unsqueeze(0) # 这里肯定得后面再来重写的。要把卷积整进去。
+        elif type(state) == dict:
+            state = self.state_to_tensor(state) # this is for CNN
+
         with paddle.no_grad():
             # print(self.noisy.sample([1]).shape)
             # action = self.forward(state).squeeze(0) + self.is_train * epsilon * self.noisy.sample([1]).squeeze(0) # 这个是示例代码，但是应该不对
             action = self.forward(state).squeeze(0) + self.is_train * epsilon * self.noisy.sample([1])
         return 2 * paddle.clip(action, -1, 1).numpy() 
     
+    def state_to_tensor(self,state):
+        # 把state转化成能够输入到神经网络里面去的形式。
+        state_tensor = {} 
+        x = {} 
+        # x_CNN = np.append(state['location'],state['direction'])
+        # X_CNN = np.append(x_CNN,state['omega'])
+        # state_tensor['location']= paddle.to_tensor(state['location'],dtype="float32").unsqueeze(0)
+        # state_tensor['direction'] = paddle.to_tensor(state['direction'],dtype="float32").unsqueeze(0)
+        # state_tensor['omega'] = paddle.to_tensor(state['omega'],dtype="float32").unsqueeze(0)
+        # state_tensor['evaluate_array'] = paddle.to_tensor(state['evaluate_array'],dtype="float32").unsqueeze(0)
+        for name in self.state_name:
+            if type(state[name])==np.ndarray:
+                if len(state[name].shape) == 2 and name!='evaluate_array':
+                    state[name] = state[name].reshape(state[name].shape[1],)
+                
+            state_tensor[name] = paddle.to_tensor(state[name],dtype="float32").unsqueeze(0).unsqueeze(0)
+        # x_CNN = state['evaluate_array']
+
+        x_CNN = state_tensor['evaluate_array']
+        x_other = paddle.concat((state_tensor['location'],state_tensor['direction'],state_tensor['omega']),axis=2)
+        x['CNN'] = x_CNN 
+        x['other'] = x_other
+        return x
+
     def save_network(self,adam,checkpoint,**kargs):
         if 'location' in kargs:
             location = kargs['location'] + r'\saved_actor_networks'

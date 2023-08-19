@@ -22,10 +22,17 @@ class ReplayBuffer(object):
     # def add(self, experience) -> None:
     #     self.buffer.append(experience)
     def add(self, state, action, reward, new_state, done):
-        if len(state.shape) == 1:
+        # 根据输入的情况，进行一些处理。
+        if type(state) == dict:
+            # 直接使用
             state = state
-        elif len(state.shape) == 2:
-            state = state.reshape(state.shape[0],)
+            
+        else:
+            if len(state.shape) == 1:
+                state = state
+            elif len(state.shape) == 2:
+                state = state.reshape(state.shape[0],)
+
         experience = (state, action, reward, new_state, done)
         # self.jilu_buffer(experience)
         if self.num_experiences < self.buffer_size:
